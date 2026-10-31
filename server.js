@@ -114,7 +114,10 @@ app.post("/api/admin/keys/:id/revoke", adminOnly, async (req, res) => {
     res.status(500).json({ error: "Could not disable key." });
   }
 });
-
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+  
 async function start() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS keys (
