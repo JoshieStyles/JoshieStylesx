@@ -1,1 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NivØx MODS — Premium Panel</title>
+<style>
+:root{color-scheme:dark;--bg:#080d18;--panel:#111a2b;--line:#253653;--blue:#278bff;--muted:#9eacc3}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#14284a,#080d18 55%);font:15px Arial,sans-serif;color:#eef5ff;min-height:100vh}
+main{max-width:950px;margin:auto;padding:28px 16px}.brand{font-size:26px;font-weight:900;letter-spacing:1px;color:#55aaff}.sub{color:var(--muted);margin:7px 0 24px}
+.panel{background:#111a2bf2;border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0;box-shadow:0 12px 35px #0005}
+h2{font-size:18px;margin:0 0 14px}input,button,select{font:inherit;border-radius:9px;padding:12px;border:1px solid var(--line);background:#0b1322;color:white}
+input{width:100%;margin:7px 0 12px}button{background:var(--blue);border:0;font-weight:700;cursor:pointer}button.secondary{background:#263a59}button.danger{background:#a73546}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.tile{background:#0b1424;border:1px solid var(--line);padding:16px;border-radius:12px}.tile strong{display:block;margin-bottom:8px}.muted{color:var(--muted);font-size:13px}.hidden{display:none}.msg{margin-top:10px;color:#ffb6b6}.good{color:#75e6a2}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.row input{flex:1;min-width:150px}.key{font-family:monospace;word-break:break-all;color:#8fc4ff}.admin-list{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+small{color:var(--muted)}footer{color:var(--muted);font-size:12px;text-align:center;margin:28px 0}
+</style></head>
+<body><main>
+<div class="brand">NivØx MODS</div><div class="sub">FREE FIRE • PREMIUM SENSITIVITY & DEVICE OPTIMISATION</div>
 
+<section class="panel" id="gate">
+<h2>Unlock premium features</h2><div class="muted">Enter your activation key to access the dashboard.</div>
+<input id="activationKey" placeholder="NIVOX-XXXXXXXXXXXX" autocomplete="off">
+<button onclick="activate()">UNLOCK PANEL</button><div id="gateMsg" class="msg"></div>
+</section>
+
+<section id="dashboard" class="hidden">
+<div class="panel"><div class="row"><div><h2>Premium dashboard</h2><div id="expiry" class="muted"></div></div><span style="flex:1"></span><button class="secondary" onclick="lockPanel()">Lock</button></div></div>
+<div class="grid">
+<div class="tile"><strong>🎯 Headshot sensitivity optimiser</strong><div class="muted">Build a fair-play sensitivity profile based on your phone, refresh rate and finger layout.</div><button onclick="showTool('sens')">Open optimiser</button></div>
+<div class="tile"><strong>📱 DPI guide</strong><div class="muted">Learn what display density means and how to check supported settings safely.</div><button onclick="showTool('dpi')">Open guide</button></div>
+<div class="tile"><strong>🧠 RAM checker</strong><div class="muted">View browser-reported memory where supported.</div><button onclick="showTool('ram')">Check RAM</button></div>
+<div class="tile"><strong>💾 Storage checker</strong><div class="muted">Estimate available browser storage quota (not total phone storage).</div><button onclick="showTool('storage')">Check storage</button></div>
+<div class="tile"><strong>⚙️ Device profile</strong><div class="muted">Review device/browser details to help tune settings.</div><button onclick="showTool('device')">View device</button></div>
+<div class="tile"><strong>🎮 FPS & graphics guide</strong><div class="muted">Practical graphics choices to reduce lag and overheating.</div><button onclick="showTool('fps')">Open guide</button></div>
+</div>
+<div class="panel hidden" id="toolPanel"><h2 id="toolTitle"></h2><div id="toolContent"></div></div>
+</section>
+
+<section class="panel" id="admin">
+<h2>Admin key manager</h2><div class="muted">For the site owner. Admin password is set on the server, not in this page.</div>
+<input id="adminPassword" type="password" placeholder="Admin password">
+<div class="row"><input id="duration" type="number" min="1" max="8760" value="24" placeholder="Hours"><input id="keyLabel" placeholder="Key label (optional)"><button onclick="createKey()">Generate key</button></div>
+<div class="muted">Set the key time limit in the Hours box above. Examples: 1 = one hour, 24 = one day, 168 = seven days, 720 = 30 days.</div>
+<div id="newKey" class="muted" style="margin-top:12px"></div><div id="adminMsg" class="msg"></div>
+<button class="secondary" onclick="loadKeys()" style="margin-top:10px">Refresh key list</button>
+<div class="admin-list"><table><thead><tr><th>Label</th><th>Created</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody id="keyRows"></tbody></table></div>
+</section>
+<footer>Fan-made utility panel. Not affiliated with Garena or Free Fire. No cheats or game-file modifications.</footer>
+</main>
+<script>
+let currentKey="";
+const $=id=>document.getElementById(id);
+async function api(url,options={}){const r=await fetch(url,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await r.json();if(!r.ok)throw Error(data.error||"Request failed");return data}
+async function activate(){const key=$("activationKey").value.trim();$("gateMsg").textContent="Checking key…";try{const d=await api("https://joshiestylesx-1.onrender.com/api/activate",{method:"POST",body:JSON.stringify({key})});currentKey=key;$("gate").classList.add("hidden");$("dashboard").classList.remove("hidden");$("expiry").textContent="Access expires: "+new Date(d.expiresAt).toLocaleString();}catch(e){$("gateMsg").textContent=e.message}}
+function lockPanel(){currentKey="";$("dashboard").classList.add("hidden");$("gate").classList.remove("hidden");$("activationKey").value=""}
+function showTool(which){$("toolPanel").classList.remove("hidden");const titles={sens:"Headshot sensitivity optimiser",dpi:"DPI guide",ram:"RAM checker",storage:"Storage checker",device:"Device profile",fps:"FPS & graphics guide"};$("toolTitle").textContent=titles[which];let html="";
+if(which==="sens"){html=`<p>Use these as starting points, then adjust in Training Ground. No setting guarantees headshots.</p><label>Finger layout</label><select id="fingers"><option>2 fingers</option><option selected>3 fingers</option><option>4 fingers</option><option>5 fingers</option></select><label>Play style</label><select id="style"><option>One-tap</option><option>Drag headshots</option><option>Balanced</option></select><label>Phone performance</label><select id="power"><option>Low-end</option><option selected>Mid-range</option><option>High-end</option></select><button onclick="makeSens()">Generate starting profile</button><div id="sensResult"></div>`}
+if(which==="dpi"){html="<p>Android's smallest-width / display-size settings affect interface scaling. A normal website cannot reliably read your phone's physical DPI or safely change it.</p><p>Check your phone's Settings → Display. Avoid extreme values; write down the original setting before changing anything.</p>"}
+if(which==="ram"){html=`<p>Browser-reported device memory: <b>${navigator.deviceMemory?navigator.deviceMemory+" GB (approximate)":"Not exposed by this browser"}</b>.</p><p>This is an estimate, not a full hardware diagnostic. Close background apps before playing.</p>`}
+if(which==="storage"){html="<p>Checking browser storage estimate…</p>";if(navigator.storage&&navigator.storage.estimate){navigator.storage.estimate().then(x=>{const gb=n=>((n||0)/1073741824).toFixed(2);$("toolContent").innerHTML=`<p>Browser storage used: <b>${gb(x.usage)} GB</b></p><p>Browser storage quota: <b>${gb(x.quota)} GB</b></p><small>This is website storage quota, not your phone's total/free internal storage. Android Settings → Storage shows the real device figures.</small>`})}}
+if(which==="device"){html=`<p>Platform: <b>${navigator.userAgentData?.platform||navigator.platform||"Not reported"}</b></p><p>Screen: <b>${screen.width} × ${screen.height}</b></p><p>Pixel ratio: <b>${devicePixelRatio}</b></p><p>CPU threads reported: <b>${navigator.hardwareConcurrency||"Not reported"}</b></p><p>Browser: <small>${navigator.userAgent}</small></p>`}
+if(which==="fps"){html="<ul><li>Use Smooth graphics if the phone heats up or drops frames.</li><li>Close screen recorders and unused background apps.</li><li>Keep enough free storage for the game and updates.</li><li>Do not use unofficial boosters that request risky permissions.</li><li>Keep the phone cool and avoid playing while charging if it overheats.</li></ul>"}
+$("toolContent").innerHTML=html}
+function makeSens(){const f=$("fingers").value,s=$("style").value,p=$("power").value;let base=p==="Low-end"?[88,82,76,70,55,65]:p==="High-end"?[96,90,84,78,62,72]:[92,86,80,74,58,68];if(s==="One-tap")base=base.map((v,i)=>i<2?Math.min(100,v+3):v);if(f==="4 fingers"||f==="5 fingers")base[0]=Math.max(80,base[0]-2);$("sensResult").innerHTML="<p class='good'>Suggested starting values (test and adjust):</p><p>General: "+base[0]+" • Red Dot: "+base[1]+" • 2×: "+base[2]+" • 4×: "+base[3]+" • Sniper: "+base[4]+" • Free Look: "+base[5]+"</p><small>These are starting points, not guaranteed results. In-game sensitivity ranges and updates may vary.</small>"}
+function adminHeaders(){return {"x-admin-password":$("adminPassword").value}}
+async function createKey(){ $("adminMsg").textContent="";try{const d=await api("/api/admin/keys",{method:"POST",headers:adminHeaders(),body:JSON.stringify({hours:$("duration").value,label:$("keyLabel").value})});$("newKey").innerHTML=`New key: <b class="key">${d.key}</b> <button class="secondary" onclick="navigator.clipboard.writeText('${d.key}')">Copy</button><br>Expires: ${new Date(d.expiresAt).toLocaleString()}`;loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
+async function loadKeys(){try{const rows=await api("/api/admin/keys",{headers:adminHeaders()});$("keyRows").innerHTML=rows.map(k=>`<tr><td>${escapeHtml(k.label||"—")}</td><td>${new Date(k.created_at).toLocaleString()}</td><td>${new Date(k.expires_at).toLocaleString()}</td><td>${k.revoked?"Disabled":Date.now()>=k.expires_at?"Expired":"Active"}</td><td>${k.revoked?"—":`<button class="danger" onclick="revokeKey(${k.id})">Disable</button>`}</td></tr>`).join("")}catch(e){$("adminMsg").textContent=e.message}}
+async function revokeKey(id){try{await api(`/api/admin/keys/${id}/revoke`,{method:"POST",headers:adminHeaders()});loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+</script></body></html>
