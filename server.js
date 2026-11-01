@@ -4,7 +4,7 @@ const crypto = require("crypto");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const DATABASE_URL = process.env.DATABASE_URL;
 
@@ -114,10 +114,7 @@ app.post("/api/admin/keys/:id/revoke", adminOnly, async (req, res) => {
     res.status(500).json({ error: "Could not disable key." });
   }
 });
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-  
+
 async function start() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS keys (
