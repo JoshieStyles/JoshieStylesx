@@ -25,7 +25,7 @@ small{color:var(--muted)}footer{color:var(--muted);font-size:12px;text-align:cen
 <section id="dashboard" class="hidden">
 <div class="panel"><div class="row"><div><h2>Premium dashboard</h2><div id="expiry" class="muted"></div></div><span style="flex:1"></span><button class="secondary" onclick="lockPanel()">Lock</button></div></div>
 <div class="grid">
-<div class="tile"><strong>🎯 Headshot sensitivity optimiser</strong><div class="muted">Build a fair-play sensitivity profile based on your phone, refresh rate and finger layout.</div><button onclick="showTool('sens')">Open optimiser</button></div>
+<div class="tile"><strong>🎯 Headshot sensitivity optimiser</strong><div class="muted">Build and calibrate a fair-play starting profile using your device details and Training Ground feedback.</div><button onclick="showTool('sens')">Open optimiser</button></div>
 <div class="tile"><strong>📱 DPI guide</strong><div class="muted">Learn what display density means and how to check supported settings safely.</div><button onclick="showTool('dpi')">Open guide</button></div>
 <div class="tile"><strong>🧠 RAM checker</strong><div class="muted">View browser-reported memory where supported.</div><button onclick="showTool('ram')">Check RAM</button></div>
 <div class="tile"><strong>💾 Storage checker</strong><div class="muted">Estimate available browser storage quota (not total phone storage).</div><button onclick="showTool('storage')">Check storage</button></div>
@@ -53,26 +53,71 @@ async function api(url,options={}){const r=await fetch(url,{...options,headers:{
 async function activate(){const key=$("activationKey").value.trim();$("gateMsg").textContent="Checking key…";try{const d=await api("/api/activate",{method:"POST",body:JSON.stringify({key})});currentKey=key;$("gate").classList.add("hidden");$("dashboard").classList.remove("hidden");$("expiry").textContent="Access expires: "+new Date(d.expiresAt).toLocaleString();}catch(e){$("gateMsg").textContent=e.message}}
 function lockPanel(){currentKey="";$("dashboard").classList.add("hidden");$("gate").classList.remove("hidden");$("activationKey").value=""}
 function showTool(which){$("toolPanel").classList.remove("hidden");const titles={sens:"Headshot sensitivity optimiser",dpi:"DPI guide",ram:"RAM checker",storage:"Storage checker",device:"Device profile",fps:"FPS & graphics guide"};$("toolTitle").textContent=titles[which];let html="";
-if(which==="sens"){html=`<p>Use these as starting points, then adjust in Training Ground. No setting guarantees headshots.</p><label>Finger layout</label><select id="fingers"><option>2 fingers</option><option selected>3 fingers</option><option>4 fingers</option><option>5 fingers</option></select><label>Play style</label><select id="style"><option>One-tap</option><option>Drag headshots</option><option>Balanced</option></select><label>Phone performance</label><select id="power"><option>Low-end</option><option selected>Mid-range</option><option>High-end</option></select><button onclick="makeSens()">Generate starting profile</button><div id="sensResult"></div>`}
+if(which==="sens"){html=`<p>Use these as starting points, then adjust in Training Ground. No setting guarantees headshots.</p><label>Phone model (enter exact model if known)</label><input id="phoneModel" placeholder="e.g. Redmi Note 15">
+<label>RAM</label><select id="ramLevel"><option value="3">3 GB or less</option><option value="4" selected>4 GB</option><option value="6">6 GB</option><option value="8">8 GB</option><option value="12">12 GB or more</option></select>
+<label>Screen refresh rate</label><select id="refresh"><option value="60">60 Hz</option><option value="90">90 Hz</option><option value="120">120 Hz</option><option value="144">144 Hz</option></select>
+<label>Your current DPI / smallest width (optional)</label><input id="dpi" type="number" min="0" max="1000" placeholder="Leave blank if unknown">
+<label>Finger layout</label><select id="fingers"><option>2 fingers</option><option selected>3 fingers</option><option>4 fingers</option><option>5 fingers</option></select>
+<label>Play style</label><select id="style"><option>One-tap</option><option>Drag headshots</option><option>Precise aim</option><option>Balanced</option></select>
+<label>Phone performance</label><select id="power"><option>Low-end</option><option selected>Mid-range</option><option>High-end</option></select>
+<button onclick="makeSens()">Generate personalised starting profile</button><div id="sensResult"></div>`}
 if(which==="dpi"){html="<p>Android's smallest-width / display-size settings affect interface scaling. A normal website cannot reliably read your phone's physical DPI or safely change it.</p><p>Check your phone's Settings → Display. Avoid extreme values; write down the original setting before changing anything.</p>"}
 if(which==="ram"){html=`<p>Browser-reported device memory: <b>${navigator.deviceMemory?navigator.deviceMemory+" GB (approximate)":"Not exposed by this browser"}</b>.</p><p>This is an estimate, not a full hardware diagnostic. Close background apps before playing.</p>`}
 if(which==="storage"){html="<p>Checking browser storage estimate…</p>";if(navigator.storage&&navigator.storage.estimate){navigator.storage.estimate().then(x=>{const gb=n=>((n||0)/1073741824).toFixed(2);$("toolContent").innerHTML=`<p>Browser storage used: <b>${gb(x.usage)} GB</b></p><p>Browser storage quota: <b>${gb(x.quota)} GB</b></p><small>This is website storage quota, not your phone's total/free internal storage. Android Settings → Storage shows the real device figures.</small>`})}}
 if(which==="device"){html=`<p>Platform: <b>${navigator.userAgentData?.platform||navigator.platform||"Not reported"}</b></p><p>Screen: <b>${screen.width} × ${screen.height}</b></p><p>Pixel ratio: <b>${devicePixelRatio}</b></p><p>CPU threads reported: <b>${navigator.hardwareConcurrency||"Not reported"}</b></p><p>Browser: <small>${navigator.userAgent}</small></p>`}
 if(which==="fps"){html="<ul><li>Use Smooth graphics if the phone heats up or drops frames.</li><li>Close screen recorders and unused background apps.</li><li>Keep enough free storage for the game and updates.</li><li>Do not use unofficial boosters that request risky permissions.</li><li>Keep the phone cool and avoid playing while charging if it overheats.</li></ul>"}
 $("toolContent").innerHTML=html}
+let activeSensitivity = null;
 function makeSens(){
-  const f=$("fingers").value,s=$("style").value,p=$("power").value;
-  // Free Fire sensitivity values use the expanded 0–200 scale where supported.
-  let base=p==="Low-end"?[165,155,145,130,95,140]:
-           p==="High-end"?[190,180,165,150,115,160]:
-           [180,170,155,140,105,150];
-  if(s==="One-tap") base=base.map((v,i)=>i===0?Math.min(200,v+8):i===1?Math.min(200,v+6):v);
-  if(s==="Drag headshots") base=base.map((v,i)=>i===0?Math.min(200,v+10):i===1?Math.min(200,v+7):i===2?Math.min(200,v+4):v);
-  if(f==="4 fingers"||f==="5 fingers") base[0]=Math.max(0,base[0]-4);
-  if(f==="2 fingers") base[0]=Math.min(200,base[0]+3);
-  base=base.map(v=>Math.max(0,Math.min(200,Math.round(v))));
+  const f=$("fingers").value, s=$("style").value, p=$("power").value;
+  const ram=Number($("ramLevel").value), hz=Number($("refresh").value);
+  const dpi=Number($("dpi").value)||null;
+  const phone=$("phoneModel").value.trim();
+  // Heuristic starting points only: model/RAM/DPI cannot reveal touch latency or aim skill.
+  let base=p==="Low-end"?[158,148,136,122,88,132]:
+           p==="High-end"?[184,174,160,145,108,152]:
+           [172,162,148,134,98,142];
+  if(ram<=3) base=base.map((v,i)=>v-(i<4?7:4));
+  else if(ram>=8) base=base.map((v,i)=>v+(i<4?4:2));
+  if(hz>=120) base=base.map((v,i)=>v+(i<2?3:1));
+  else if(hz===60) base=base.map((v,i)=>v-(i<2?3:1));
+  if(dpi && dpi<350) base=base.map((v,i)=>v+(i<2?4:0));
+  if(dpi && dpi>500) base=base.map((v,i)=>v-(i<2?4:0));
+  if(s==="One-tap") base=base.map((v,i)=>i===0?v+8:i===1?v+5:v);
+  if(s==="Drag headshots") base=base.map((v,i)=>i===0?v+10:i===1?v+7:i===2?v+3:v);
+  if(s==="Precise aim") base=base.map((v,i)=>i===0?v-8:i===1?v-5:i>=2?v-3:v);
+  if(f==="4 fingers"||f==="5 fingers") base[0]-=3;
+  if(f==="2 fingers") base[0]+=3;
+  activeSensitivity=base.map(v=>Math.max(0,Math.min(200,Math.round(v))));
+  renderSensitivity(phone, ram, hz, dpi, s);
+}
+function renderSensitivity(phone, ram, hz, dpi, style){
   const names=["General","Red Dot","2× Scope","4× Scope","Sniper","Free Look"];
-  $("sensResult").innerHTML="<p class='good'>Suggested starting values (0–200 scale, where supported):</p><div class='grid'>"+names.map((n,i)=>"<div class='tile'><strong>"+n+"</strong><span style='font-size:25px;color:#58a6ff;font-weight:700'>"+base[i]+"</span><div class='muted'> / 200</div></div>").join("")+"</div><small>These are starting points, not guaranteed headshots. Check your game's current sensitivity maximum; if your version only allows 0–100, use values within that limit. Fine-tune in Training Ground.</small>";
+  $("sensResult").innerHTML=
+    `<p class="good">Personalised starting profile — values are suggestions, not measured predictions.</p>
+    <p class="muted">${escapeHtml(phone||"Phone not specified")} • ${ram} GB RAM • ${hz} Hz • ${style}${dpi?` • DPI/smallest width: ${dpi}`:""}</p>
+    <div class="grid">${names.map((n,i)=>`<div class="tile"><strong>${n}</strong><span style="font-size:25px;color:#58a6ff;font-weight:700">${activeSensitivity[i]}</span><div class="muted"> / 200 maximum (if supported)</div></div>`).join("")}</div>
+    <hr style="border-color:#253653;margin:18px 0">
+    <h3>Training Ground calibration</h3>
+    <p>Test the profile with the same weapon and distance for several attempts. Choose the result that best describes your aim, then apply a small adjustment.</p>
+    <label>What happens when you drag toward the target?</label>
+    <select id="aimFeedback"><option value="over">Crosshair goes above the head / overshoots</option><option value="under">Crosshair stays below the head / undershoots</option><option value="steady">Crosshair reaches the target but shakes</option><option value="good">Aim feels controlled and consistent</option></select>
+    <label>Which area needs adjustment?</label>
+    <select id="aimScope"><option value="0,1">General + Red Dot</option><option value="2">2× Scope</option><option value="3">4× Scope</option><option value="4">Sniper</option><option value="all">All aiming values</option></select>
+    <button onclick="calibrateSens()">Adjust from my test</button>
+    <div id="calibrationResult" class="muted" style="margin-top:10px"></div>
+    <small>Calibration changes are deliberately small (3–5 points). Repeat testing rather than making large jumps. Game updates, touch sampling, screen protectors, frame rate and personal technique all affect results. If your game only permits 0–100, cap values at 100 in-game.</small>`;
+}
+function calibrateSens(){
+  if(!activeSensitivity) return;
+  const feedback=$("aimFeedback").value, scope=$("aimScope").value;
+  let indices=scope==="all"?[0,1,2,3,4]:scope.split(",").map(Number);
+  // Overshoot: lower sensitivity. Undershoot: raise it. Shaky: lower slightly.
+  const delta=feedback==="over"?-4:feedback==="under"?4:feedback==="steady"?-2:0;
+  indices.forEach(i=>{activeSensitivity[i]=Math.max(0,Math.min(200,activeSensitivity[i]+delta));});
+  const names=["General","Red Dot","2× Scope","4× Scope","Sniper","Free Look"];
+  $("sensResult").querySelectorAll(".tile span").forEach((el,i)=>{if(i<5)el.textContent=activeSensitivity[i];});
+  $("calibrationResult").textContent=delta===0?"No adjustment made. Keep this profile and retest for consistency.":"Adjusted "+indices.map(i=>names[i]).join(", ")+" by "+delta+" points. Retest in Training Ground before saving these values.";
 }
 function adminHeaders(){return {"x-admin-password":$("adminPassword").value}}
 async function createKey(){ $("adminMsg").textContent="";try{const d=await api("/api/admin/keys",{method:"POST",headers:adminHeaders(),body:JSON.stringify({hours:$("duration").value,label:$("keyLabel").value})});$("newKey").innerHTML=`New key: <b class="key">${d.key}</b> <button class="secondary" onclick="navigator.clipboard.writeText('${d.key}')">Copy</button><br>Expires: ${new Date(d.expiresAt).toLocaleString()}`;loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
