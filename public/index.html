@@ -1,127 +1,212 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NivØx MODS — Premium Panel</title>
-<style>
-:root{color-scheme:dark;--bg:#080d18;--panel:#111a2b;--line:#253653;--blue:#278bff;--muted:#9eacc3}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#14284a,#080d18 55%);font:15px Arial,sans-serif;color:#eef5ff;min-height:100vh}
-main{max-width:950px;margin:auto;padding:28px 16px}.brand{font-size:26px;font-weight:900;letter-spacing:1px;color:#55aaff}.sub{color:var(--muted);margin:7px 0 24px}
-.panel{background:#111a2bf2;border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0;box-shadow:0 12px 35px #0005}
-h2{font-size:18px;margin:0 0 14px}input,button,select{font:inherit;border-radius:9px;padding:12px;border:1px solid var(--line);background:#0b1322;color:white}
-input{width:100%;margin:7px 0 12px}button{background:var(--blue);border:0;font-weight:700;cursor:pointer}button.secondary{background:#263a59}button.danger{background:#a73546}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.tile{background:#0b1424;border:1px solid var(--line);padding:16px;border-radius:12px}.tile strong{display:block;margin-bottom:8px}.muted{color:var(--muted);font-size:13px}.hidden{display:none}.msg{margin-top:10px;color:#ffb6b6}.good{color:#75e6a2}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.row input{flex:1;min-width:150px}.key{font-family:monospace;word-break:break-all;color:#8fc4ff}.admin-list{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
-small{color:var(--muted)}footer{color:var(--muted);font-size:12px;text-align:center;margin:28px 0}
-</style></head>
-<body><main>
-<div class="brand">NivØx MODS</div><div class="sub">FREE FIRE • PREMIUM SENSITIVITY & DEVICE OPTIMISATION</div>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nivox Free Fire Premium Sensitivity</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #1e293b;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid #334155;
+        }
+        h1 {
+            color: #ff4757;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .whatsapp-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background-color: #25D366;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        .whatsapp-btn:hover {
+            background-color: #20ba5a;
+            transform: translateY(-1px);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #475569;
+            background: #0f172a;
+            color: #fff;
+            font-size: 1rem;
+            outline: none;
+        }
+        select:focus, input:focus {
+            border-color: #ff4757;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #ff4757;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: background 0.2s ease;
+        }
+        button:hover {
+            background: #ff6b81;
+        }
+        .results {
+            margin-top: 25px;
+            padding: 20px;
+            background: #0f172a;
+            border-radius: 8px;
+            border-left: 4px solid #ff4757;
+            display: none;
+        }
+        .results h3 {
+            margin-bottom: 15px;
+            color: #2ed573;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        .badge {
+            background: #ff4757;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: white;
+        }
+    </style>
+</head>
+<body>
 
-<section class="panel" id="gate">
-<h2>Unlock premium features</h2><div class="muted">Enter your activation key to access the dashboard.</div>
-<input id="activationKey" placeholder="NIVOX-XXXXXXXXXXXX" autocomplete="off">
-<button onclick="activate()">UNLOCK PANEL</button><div id="gateMsg" class="msg"></div>
-</section>
+<div class="container">
+    <h1>🔥 Nivox FF Sensitivity</h1>
 
-<section id="dashboard" class="hidden">
-<div class="panel"><div class="row"><div><h2>Premium dashboard</h2><div id="expiry" class="muted"></div></div><span style="flex:1"></span><button class="secondary" onclick="lockPanel()">Lock</button></div></div>
-<div class="grid">
-<div class="tile"><strong>🎯 Headshot sensitivity optimiser</strong><div class="muted">Build and calibrate a fair-play starting profile using your device details and Training Ground feedback.</div><button onclick="showTool('sens')">Open optimiser</button></div>
-<div class="tile"><strong>📱 DPI guide</strong><div class="muted">Learn what display density means and how to check supported settings safely.</div><button onclick="showTool('dpi')">Open guide</button></div>
-<div class="tile"><strong>🧠 RAM checker</strong><div class="muted">View browser-reported memory where supported.</div><button onclick="showTool('ram')">Check RAM</button></div>
-<div class="tile"><strong>💾 Storage checker</strong><div class="muted">Estimate available browser storage quota (not total phone storage).</div><button onclick="showTool('storage')">Check storage</button></div>
-<div class="tile"><strong>⚙️ Device profile</strong><div class="muted">Review device/browser details to help tune settings.</div><button onclick="showTool('device')">View device</button></div>
-<div class="tile"><strong>🎮 FPS & graphics guide</strong><div class="muted">Practical graphics choices to reduce lag and overheating.</div><button onclick="showTool('fps')">Open guide</button></div>
+    <a href="https://whatsapp.com/channel/0029VbDGZd50rGiDqYtYNW1o" target="_blank" class="whatsapp-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+        </svg>
+        Join my WhatsApp channel
+    </a>
+    
+    <div class="form-group">
+        <label for="ram">Device RAM</label>
+        <select id="ram">
+            <option value="3">2GB - 4GB RAM (Budget)</option>
+            <option value="6" selected>6GB RAM (Mid-Range)</option>
+            <option value="8">8GB+ RAM (High-End / Flagship)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="dpi">Custom DPI (Optional)</label>
+        <input type="number" id="dpi" placeholder="e.g. 480 (Default if empty)">
+    </div>
+
+    <div class="form-group">
+        <label for="playstyle">Combat Playstyle</label>
+        <select id="playstyle">
+            <option value="onetap">One-Tap Headshot (Desert Eagle / Woodpecker)</option>
+            <option value="smg">SMG Drag & Spray (MP40 / Thompson)</option>
+            <option value="balanced">Balanced All-Rounder</option>
+        </select>
+    </div>
+
+    <button onclick="generateConfig()">Generate 9/10 Headshot Config</button>
+
+    <div class="results" id="results">
+        <h3>🎯 Optimized Sensitivity</h3>
+        <div class="stat-row"><span>General:</span><strong id="val-general">0</strong></div>
+        <div class="stat-row"><span>Red Dot:</span><strong id="val-reddot">0</strong></div>
+        <div class="stat-row"><span>2X Scope:</span><strong id="val-scope2x">0</strong></div>
+        <div class="stat-row"><span>4X Scope:</span><strong id="val-scope4x">0</strong></div>
+        <div class="stat-row"><span>Sniper Scope:</span><strong id="val-sniper">0</strong></div>
+        <div class="stat-row"><span>Free Look:</span><strong id="val-freelook">0</strong></div>
+        
+        <h3 style="margin-top: 15px; color: #ffa502;">⚙️ Companion Settings</h3>
+        <div class="stat-row"><span>Fire Button Size:</span><strong id="val-firesize">40%</strong></div>
+        <div class="stat-row"><span>Aim Precision:</span><strong id="val-precision">Default</strong></div>
+        <div class="stat-row"><span>Button Position:</span><strong>Lower-Middle</strong></div>
+    </div>
 </div>
-<div class="panel hidden" id="toolPanel"><h2 id="toolTitle"></h2><div id="toolContent"></div></div>
-</section>
 
-<section class="panel" id="admin">
-<h2>Admin key manager</h2><div class="muted">For the site owner. Admin password is set on the server, not in this page.</div>
-<input id="adminPassword" type="password" placeholder="Admin password">
-<div class="row"><input id="duration" type="number" min="1" max="8760" value="24" placeholder="Hours"><input id="keyLabel" placeholder="Key label (optional)"><button onclick="createKey()">Generate key</button></div>
-<div class="muted">Set the key time limit in the Hours box above. Examples: 1 = one hour, 24 = one day, 168 = seven days, 720 = 30 days.</div>
-<div id="newKey" class="muted" style="margin-top:12px"></div><div id="adminMsg" class="msg"></div>
-<button class="secondary" onclick="loadKeys()" style="margin-top:10px">Refresh key list</button>
-<div class="admin-list"><table><thead><tr><th>Label</th><th>Created</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody id="keyRows"></tbody></table></div>
-</section>
-<footer>Fan-made utility panel. Not affiliated with Garena or Free Fire. No cheats or game-file modifications.</footer>
-</main>
 <script>
-let currentKey="";
-const $=id=>document.getElementById(id);
-async function api(url,options={}){const r=await fetch(url,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await r.json();if(!r.ok)throw Error(data.error||"Request failed");return data}
-async function activate(){const key=$("activationKey").value.trim();$("gateMsg").textContent="Checking key…";try{const d=await api("/api/activate",{method:"POST",body:JSON.stringify({key})});currentKey=key;$("gate").classList.add("hidden");$("dashboard").classList.remove("hidden");$("expiry").textContent="Access expires: "+new Date(d.expiresAt).toLocaleString();}catch(e){$("gateMsg").textContent=e.message}}
-function lockPanel(){currentKey="";$("dashboard").classList.add("hidden");$("gate").classList.remove("hidden");$("activationKey").value=""}
-function showTool(which){$("toolPanel").classList.remove("hidden");const titles={sens:"Headshot sensitivity optimiser",dpi:"DPI guide",ram:"RAM checker",storage:"Storage checker",device:"Device profile",fps:"FPS & graphics guide"};$("toolTitle").textContent=titles[which];let html="";
-if(which==="sens"){html=`<p>Use these as starting points, then adjust in Training Ground. No setting guarantees headshots.</p><label>Phone model (enter exact model if known)</label><input id="phoneModel" placeholder="e.g. Redmi Note 15">
-<label>RAM</label><select id="ramLevel"><option value="3">3 GB or less</option><option value="4" selected>4 GB</option><option value="6">6 GB</option><option value="8">8 GB</option><option value="12">12 GB or more</option></select>
-<label>Screen refresh rate</label><select id="refresh"><option value="60">60 Hz</option><option value="90">90 Hz</option><option value="120">120 Hz</option><option value="144">144 Hz</option></select>
-<label>Your current DPI / smallest width (optional)</label><input id="dpi" type="number" min="0" max="1000" placeholder="Leave blank if unknown">
-<label>Finger layout</label><select id="fingers"><option>2 fingers</option><option selected>3 fingers</option><option>4 fingers</option><option>5 fingers</option></select>
-<label>Play style</label><select id="style"><option>One-tap</option><option>Drag headshots</option><option>Precise aim</option><option>Balanced</option></select>
-<label>Phone performance</label><select id="power"><option>Low-end</option><option selected>Mid-range</option><option>High-end</option></select>
-<button onclick="makeSens()">Generate personalised starting profile</button><div id="sensResult"></div>`}
-if(which==="dpi"){html="<p>Android's smallest-width / display-size settings affect interface scaling. A normal website cannot reliably read your phone's physical DPI or safely change it.</p><p>Check your phone's Settings → Display. Avoid extreme values; write down the original setting before changing anything.</p>"}
-if(which==="ram"){html=`<p>Browser-reported device memory: <b>${navigator.deviceMemory?navigator.deviceMemory+" GB (approximate)":"Not exposed by this browser"}</b>.</p><p>This is an estimate, not a full hardware diagnostic. Close background apps before playing.</p>`}
-if(which==="storage"){html="<p>Checking browser storage estimate…</p>";if(navigator.storage&&navigator.storage.estimate){navigator.storage.estimate().then(x=>{const gb=n=>((n||0)/1073741824).toFixed(2);$("toolContent").innerHTML=`<p>Browser storage used: <b>${gb(x.usage)} GB</b></p><p>Browser storage quota: <b>${gb(x.quota)} GB</b></p><small>This is website storage quota, not your phone's total/free internal storage. Android Settings → Storage shows the real device figures.</small>`})}}
-if(which==="device"){html=`<p>Platform: <b>${navigator.userAgentData?.platform||navigator.platform||"Not reported"}</b></p><p>Screen: <b>${screen.width} × ${screen.height}</b></p><p>Pixel ratio: <b>${devicePixelRatio}</b></p><p>CPU threads reported: <b>${navigator.hardwareConcurrency||"Not reported"}</b></p><p>Browser: <small>${navigator.userAgent}</small></p>`}
-if(which==="fps"){html="<ul><li>Use Smooth graphics if the phone heats up or drops frames.</li><li>Close screen recorders and unused background apps.</li><li>Keep enough free storage for the game and updates.</li><li>Do not use unofficial boosters that request risky permissions.</li><li>Keep the phone cool and avoid playing while charging if it overheats.</li></ul>"}
-$("toolContent").innerHTML=html}
-let activeSensitivity = null;
-function makeSens(){
-  const f=$("fingers").value, s=$("style").value, p=$("power").value;
-  const ram=Number($("ramLevel").value), hz=Number($("refresh").value);
-  const dpi=Number($("dpi").value)||null;
-  const phone=$("phoneModel").value.trim();
-  // Heuristic starting points only: model/RAM/DPI cannot reveal touch latency or aim skill.
-  let base=p==="Low-end"?[158,148,136,122,88,132]:
-           p==="High-end"?[184,174,160,145,108,152]:
-           [172,162,148,134,98,142];
-  if(ram<=3) base=base.map((v,i)=>v-(i<4?7:4));
-  else if(ram>=8) base=base.map((v,i)=>v+(i<4?4:2));
-  if(hz>=120) base=base.map((v,i)=>v+(i<2?3:1));
-  else if(hz===60) base=base.map((v,i)=>v-(i<2?3:1));
-  if(dpi && dpi<350) base=base.map((v,i)=>v+(i<2?4:0));
-  if(dpi && dpi>500) base=base.map((v,i)=>v-(i<2?4:0));
-  if(s==="One-tap") base=base.map((v,i)=>i===0?v+8:i===1?v+5:v);
-  if(s==="Drag headshots") base=base.map((v,i)=>i===0?v+10:i===1?v+7:i===2?v+3:v);
-  if(s==="Precise aim") base=base.map((v,i)=>i===0?v-8:i===1?v-5:i>=2?v-3:v);
-  if(f==="4 fingers"||f==="5 fingers") base[0]-=3;
-  if(f==="2 fingers") base[0]+=3;
-  activeSensitivity=base.map(v=>Math.max(0,Math.min(200,Math.round(v))));
-  renderSensitivity(phone, ram, hz, dpi, s);
+async function generateConfig() {
+    const ram = document.getElementById('ram').value;
+    const dpi = document.getElementById('dpi').value;
+    const playstyle = document.getElementById('playstyle').value;
+
+    try {
+        const response = await fetch('/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ram, dpi, playstyle })
+        });
+        const data = await response.json();
+
+        document.getElementById('val-general').innerText = data.general;
+        document.getElementById('val-reddot').innerText = data.redDot;
+        document.getElementById('val-scope2x').innerText = data.scope2x;
+        document.getElementById('val-scope4x').innerText = data.scope4x;
+        document.getElementById('val-sniper').innerText = data.sniper;
+        document.getElementById('val-freelook').innerText = data.freeLook;
+        document.getElementById('val-firesize').innerText = data.recommendedFireSize;
+        document.getElementById('val-precision').innerText = data.aimPrecision;
+
+        document.getElementById('results').style.display = 'block';
+    } catch (err) {
+        alert('Failed to generate settings. Make sure backend server is running.');
+    }
 }
-function renderSensitivity(phone, ram, hz, dpi, style){
-  const names=["General","Red Dot","2× Scope","4× Scope","Sniper","Free Look"];
-  $("sensResult").innerHTML=
-    `<p class="good">Personalised starting profile — values are suggestions, not measured predictions.</p>
-    <p class="muted">${escapeHtml(phone||"Phone not specified")} • ${ram} GB RAM • ${hz} Hz • ${style}${dpi?` • DPI/smallest width: ${dpi}`:""}</p>
-    <div class="grid">${names.map((n,i)=>`<div class="tile"><strong>${n}</strong><span style="font-size:25px;color:#58a6ff;font-weight:700">${activeSensitivity[i]}</span><div class="muted"> / 200 maximum (if supported)</div></div>`).join("")}</div>
-    <hr style="border-color:#253653;margin:18px 0">
-    <h3>Training Ground calibration</h3>
-    <p>Test the profile with the same weapon and distance for several attempts. Choose the result that best describes your aim, then apply a small adjustment.</p>
-    <label>What happens when you drag toward the target?</label>
-    <select id="aimFeedback"><option value="over">Crosshair goes above the head / overshoots</option><option value="under">Crosshair stays below the head / undershoots</option><option value="steady">Crosshair reaches the target but shakes</option><option value="good">Aim feels controlled and consistent</option></select>
-    <label>Which area needs adjustment?</label>
-    <select id="aimScope"><option value="0,1">General + Red Dot</option><option value="2">2× Scope</option><option value="3">4× Scope</option><option value="4">Sniper</option><option value="all">All aiming values</option></select>
-    <button onclick="calibrateSens()">Adjust from my test</button>
-    <div id="calibrationResult" class="muted" style="margin-top:10px"></div>
-    <small>Calibration changes are deliberately small (3–5 points). Repeat testing rather than making large jumps. Game updates, touch sampling, screen protectors, frame rate and personal technique all affect results. If your game only permits 0–100, cap values at 100 in-game.</small>`;
-}
-function calibrateSens(){
-  if(!activeSensitivity) return;
-  const feedback=$("aimFeedback").value, scope=$("aimScope").value;
-  let indices=scope==="all"?[0,1,2,3,4]:scope.split(",").map(Number);
-  // Overshoot: lower sensitivity. Undershoot: raise it. Shaky: lower slightly.
-  const delta=feedback==="over"?-4:feedback==="under"?4:feedback==="steady"?-2:0;
-  indices.forEach(i=>{activeSensitivity[i]=Math.max(0,Math.min(200,activeSensitivity[i]+delta));});
-  const names=["General","Red Dot","2× Scope","4× Scope","Sniper","Free Look"];
-  $("sensResult").querySelectorAll(".tile span").forEach((el,i)=>{if(i<5)el.textContent=activeSensitivity[i];});
-  $("calibrationResult").textContent=delta===0?"No adjustment made. Keep this profile and retest for consistency.":"Adjusted "+indices.map(i=>names[i]).join(", ")+" by "+delta+" points. Retest in Training Ground before saving these values.";
-}
-function adminHeaders(){return {"x-admin-password":$("adminPassword").value}}
-async function createKey(){ $("adminMsg").textContent="";try{const d=await api("/api/admin/keys",{method:"POST",headers:adminHeaders(),body:JSON.stringify({hours:$("duration").value,label:$("keyLabel").value})});$("newKey").innerHTML=`New key: <b class="key">${d.key}</b> <button class="secondary" onclick="navigator.clipboard.writeText('${d.key}')">Copy</button><br>Expires: ${new Date(d.expiresAt).toLocaleString()}`;loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
-async function loadKeys(){try{const rows=await api("/api/admin/keys",{headers:adminHeaders()});$("keyRows").innerHTML=rows.map(k=>`<tr><td>${escapeHtml(k.label||"—")}</td><td>${new Date(k.created_at).toLocaleString()}</td><td>${new Date(k.expires_at).toLocaleString()}</td><td>${k.revoked?"Disabled":Date.now()>=k.expires_at?"Expired":"Active"}</td><td>${k.revoked?"—":`<button class="danger" onclick="revokeKey(${k.id})">Disable</button>`}</td></tr>`).join("")}catch(e){$("adminMsg").textContent=e.message}}
-async function revokeKey(id){try{await api(`/api/admin/keys/${id}/revoke`,{method:"POST",headers:adminHeaders()});loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-</script></body></html>
+</script>
+
+</body>
+</html>
