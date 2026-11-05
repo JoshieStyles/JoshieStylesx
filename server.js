@@ -71,11 +71,20 @@ app.post("/api/activate", async (req, res) => {
 });
 
 // Premium sensitivity engine: computed server-side so it cannot be used without a valid key.
+const recent = new Map(); // key id -> request timestamps (per-minute limit protects the database)
+function rateLimited(id) {
+  const now = Date.now();
+  const list = (recent.get(id) || []).filter(t => now - t < 60000);
+  if (list.length >= 60) { recent.set(id, list); return true; }
+  list.push(now); recent.set(id, list); return false;
+}
+
 function premiumRoute(handler) {
   return async (req, res) => {
     try {
       const check = await checkKey(req.body.key);
       if (check.error) return res.status(check.status).json({ error: check.error });
+      if (rateLimited(check.row.id)) return res.status(429).json({ error: "Too many requests. Please wait a minute." });
       res.json(await handler(req.body, check.row));
     } catch (e) {
       if (e.status === 400) return res.status(400).json({ error: e.message });
@@ -117,14 +126,39 @@ app.post("/api/sensitivity/generate", premiumRoute(async b => {
 app.post("/api/sensitivity/drill", premiumRoute(b => sensitivity.drill(b.input)));
 app.post("/api/sensitivity/calibrate", premiumRoute(async (b, keyRow) => {
   const result = sensitivity.calibrate(b.input);
-  // Only a verified-looking success (>=20 shots, 90%+, controlled aim) contributes to community data.
+  // Record the FIRST test of a freshly generated profile (before any calibration change) so real starting accuracy can be measured.
+  const ev0 = b.input.evidence || {};
+  if (!Number(ev0.rounds) && b.input.device && Number(b.input.shots) >= 10) {
+    try {
+      const k = sensitivity.profileKey(b.input.device);
+      await pool.query(
+        `INSERT INTO first_tests (key_id, device_type, max_slider, style, skill, source, drill, shots, headshots, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now()) ON CONFLICT DO NOTHING`,
+        [keyRow.id, k.deviceType, k.max, k.style, k.skill, Number(ev0.communityN) >= 3 ? "community" : "model", !!ev0.drill,
+          Math.round(Number(b.input.shots)), Math.round(Number(b.input.headshots))]);
+    } catch (e) { if (e.status !== 400) console.error("save first test failed", e.message); }
+  }
+  // Only confirmed successes (two passing 20+ shot tests in a row) that look plausible feed community data.
   const i = b.input;
-  if (result.targetMet && i.device && Number(i.shots) >= 20) {
-    try { await saveTuned(keyRow, i.device, i.scopes.map(Number), result.sliders); }
+  if (result.confirmed && i.device && Number(i.shots) >= 20) {
+    try {
+      const tested = i.scopes.map(Number);
+      if (sensitivity.plausible(i.device, tested, result.sliders)) await saveTuned(keyRow, i.device, tested, result.sliders);
+    }
     catch (e) { if (e.status !== 400) console.error("save tuned profile failed", e.message); }
   }
   return result;
 }));
+
+app.get("/api/admin/stats", adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT source, drill, shots, headshots FROM first_tests ORDER BY created_at DESC LIMIT 5000");
+    res.json(sensitivity.summariseFirstTests(result.rows));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Could not load stats." });
+  }
+});
 
 app.post("/api/admin/keys", adminOnly, async (req, res) => {
   try {
@@ -203,6 +237,21 @@ async function start() {
       sliders JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (key_id, device_type, max_slider, style, skill, grip, fps)
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS first_tests (
+      key_id BIGINT NOT NULL,
+      device_type TEXT NOT NULL,
+      max_slider INT NOT NULL,
+      style TEXT NOT NULL,
+      skill TEXT NOT NULL,
+      source TEXT NOT NULL,
+      drill BOOLEAN NOT NULL,
+      shots INT NOT NULL CHECK (shots BETWEEN 10 AND 500),
+      headshots INT NOT NULL CHECK (headshots BETWEEN 0 AND 500),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (key_id, device_type, max_slider, style, skill, source, drill)
     )
   `);
   await pool.query("CREATE INDEX IF NOT EXISTS tuned_lookup ON tuned_profiles (device_type, max_slider, style, fps, metric)");

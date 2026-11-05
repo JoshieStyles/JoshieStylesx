@@ -21,6 +21,9 @@ const TARGET_ACCURACY = 0.9;
 const DEFAULT_MAX = 200;
 const ALLOWED_MAX = ["100", "200"];
 // How strongly each scope reacts to a device-wide adjustment (zoomed scopes need smaller moves).
+// On the 0-200 scale the whole range is remapped, so profile values and step sizes scale together.
+const UNIT_200 = 1.8;
+const unit = max => (max === 200 ? UNIT_200 : 1);
 const SCOPE_WEIGHT = [1, 1, 0.8, 0.7, 0.6, 0.8];
 
 // Reference profiles for a ~400 PPI, 60 FPS, 120 Hz-touch, 3-finger, intermediate player.
@@ -104,6 +107,12 @@ function pts(n) {
   return (n > 0 ? "+" : "") + n + " pts";
 }
 
+// One-sided 95% lower bound of the true hit rate (Wilson). 19/20 observed does not mean 95% true.
+function wilsonLower(hits, n, z = 1.645) {
+  if (!n) return 0;
+  const p = hits / n, z2 = z * z;
+  return (p + z2 / (2 * n) - z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / (1 + z2 / n);
+}
 const round1 = n => Math.round(n * 10) / 10;
 
 /**
@@ -121,14 +130,15 @@ function reliability(e) {
     { label: `Community data${n >= 3 ? ` (${n} similar players)` : ""}`, pts: n >= 3 ? round1(1 + 1.5 * Math.min(1, Math.log(n / 3) / Math.log(10))) : 0, max: 2.5 },
     { label: "Personal aim drill", pts: e.drill ? 1.5 : 0, max: 1.5 },
     { label: "Training Ground calibration rounds", pts: rounds >= 2 ? 1 : rounds >= 1 ? 0.5 : 0, max: 1 },
-    { label: "90% headshots verified by you", pts: e.targetMet ? 2 : 0, max: 2 }
+    { label: "90% headshots verified by you (confirmed = two passing tests in a row)", pts: e.confirmed ? 2 : e.targetMet ? 1 : 0, max: 2 }
   ];
   const score = round1(Math.min(10, parts.reduce((a, p) => a + p.pts, 0)));
   const next = [];
   if (completeness < 1) next.push("Fill in screen size, touch sampling rate, resolution and model for a tighter starting profile (up to +2).");
   if (!e.drill) next.push("Run the aim drill (+1.5).");
   if (rounds < 2) next.push("Run Training Ground calibration rounds (+0.5 to +1).");
-  if (!e.targetMet) next.push("Reach 90% headshots in a 20-shot test with controlled aim (+2).");
+  if (!e.targetMet) next.push("Reach 90% headshots in a 20-shot test with controlled aim (+1).");
+  else if (!e.confirmed) next.push("Repeat the 20-shot test without changing values to confirm it was not luck (+1).");
   return { score, parts, next };
 }
 
@@ -143,23 +153,27 @@ function drill(raw) {
   if (!Array.isArray(raw.sliders) || raw.sliders.length !== SCOPES.length) throw bad("Current sensitivity values are missing.");
   const sliders = raw.sliders.map((v, i) => num(v, SCOPES[i], 0, max));
   const d = raw.drill || {};
-  const trials = Math.round(num(d.trials, "Drill trials", 6, 60));
+  const trials = Math.round(num(d.trials, "Drill trials", 8, 60));
+  const spread = num(d.spread, "Drill spread", 0, 5, 0);
   const bias = num(d.medianOvershoot, "Overshoot", -1, 3);
   const hitRate = num(d.hitRate, "Drill hit rate", 0, 1);
   let delta = Math.abs(bias) < 0.06 ? 0 : clamp(Math.round(-bias * 30), -8, 8);
   if (hitRate < 0.5) delta -= 2;           // very imprecise: favour control
   delta = clamp(delta, -10, 8);
-  const next = sliders.map((v, i) => clamp(Math.round(v + delta * SCOPE_WEIGHT[i]), 0, max));
+  const consistent = spread <= 0.5;   // wide scatter => the median is not a reliable signal, so move cautiously
+  if (!consistent) delta = Math.trunc(delta / 2);
+  const next = sliders.map((v, i) => clamp(Math.round(v + delta * unit(max) * SCOPE_WEIGHT[i]), 0, max));
   const tendency = Math.abs(bias) < 0.06 ? "balanced" : bias > 0 ? "overshoot" : "undershoot";
+  const caution = consistent ? "" : " Your drill results were inconsistent, so the change is halved: run the drill again for a clearer reading.";
   const message = delta === 0
-    ? `Drill: ${Math.round(hitRate * 100)}% on target, aim tendency ${tendency}. No change needed.`
-    : `Drill: ${Math.round(hitRate * 100)}% on target, you tend to ${tendency === "balanced" ? "lose precision" : tendency} (${Math.round(bias * 100)}% of distance). ${delta < 0 ? "Lowered" : "Raised"} your values by up to ${Math.abs(delta)} (zoomed scopes change less).`;
+    ? `Drill: ${Math.round(hitRate * 100)}% on target, aim tendency ${tendency}. No change needed.${caution}`
+    : `Drill: ${Math.round(hitRate * 100)}% on target, you tend to ${tendency === "balanced" ? "lose precision" : tendency} (${Math.round(bias * 100)}% of distance). ${delta < 0 ? "Lowered" : "Raised"} your values by up to ${Math.round(Math.abs(delta) * unit(max))} (zoomed scopes change less).${caution}`;
 
   let completeness = 0.5;
   try { completeness = normaliseInput(raw.device).completeness; } catch (e) { /* device optional here */ }
   const ev = raw.evidence || {};
-  return { sliders: next, max, delta, tendency, message,
-    reliability: reliability({ completeness, communityN: ev.communityN, drill: true, rounds: ev.rounds, targetMet: !!ev.targetMet }) };
+  return { sliders: next, max, delta, tendency, consistent, message,
+    reliability: reliability({ completeness, communityN: ev.communityN, drill: true, rounds: ev.rounds, targetMet: !!ev.targetMet, confirmed: !!ev.confirmed }) };
 }
 
 const median = arr => { const a = arr.slice().sort((x, y) => x - y), m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
@@ -169,6 +183,12 @@ function profileKey(raw) {
   const d = normaliseInput(raw);
   return { deviceType: d.type, max: d.maxSlider, style: d.style, skill: d.skill, grip: d.isMouse ? "-" : d.grip,
     fps: d.fps, completeness: d.completeness, metric: Math.round((d.isMouse ? d.mouseDpi : d.ppi) * 10) / 10, refresh: d.refresh, model: d.model };
+}
+
+// Rejects junk/spam before it reaches community data: every tested scope must be within 40% of the model value.
+function plausible(device, tested, sliders) {
+  const model = generate(device).sliders;
+  return tested.every(i => model[i] && sliders[i] >= model[i].value * 0.6 && sliders[i] <= model[i].value * 1.4);
 }
 
 // rows: arrays of 6 slider values (null = scope not tested). Returns per-scope medians.
@@ -188,6 +208,7 @@ function generate(raw, community) {
   let add = 0;
 
   factors.push({ label: `Play style: ${STYLE_LABEL[d.style]}`, effect: "base profile" });
+  if (d.maxSlider === 200) factors.push({ label: "Slider range 0–200", effect: `all values scaled ×${UNIT_200}` });
 
   // 1) Physical aim-speed normalisation: more pixels per cm of thumb travel => faster aim at equal slider.
   if (d.isMouse) {
@@ -225,7 +246,7 @@ function generate(raw, community) {
 
   const saturated = [];
   const sliders = SCOPES.map((name, i) => {
-    const raw = base[i] * mult + add * SCOPE_WEIGHT[i];
+    const raw = (base[i] * mult + add * SCOPE_WEIGHT[i]) * unit(d.maxSlider);
     if (raw > d.maxSlider + 0.5) saturated.push(name);
     return { name, value: clamp(Math.round(raw), 0, d.maxSlider) };
   });
@@ -288,6 +309,10 @@ function calibrate(raw) {
   const accuracy = headshots / shots;
   const gap = Math.max(0, TARGET_ACCURACY - accuracy);
   const targetMet = shots >= 10 && accuracy >= TARGET_ACCURACY && pattern === "good";
+  const lowerBound = wilsonLower(headshots, shots);
+  const prevStreak = Math.max(0, Math.min(10, Math.floor(Number((raw.evidence || {}).streak) || 0)));
+  const streak = targetMet ? prevStreak + 1 : 0;
+  const confirmed = streak >= 2;
 
   let delta = 0;
   let message;
@@ -296,7 +321,7 @@ function calibrate(raw) {
     let mag = clamp(Math.round(2 + gap * 12), 2, 8);
     if (pattern === "shaky") mag = Math.max(1, Math.round(mag / 2));
     if (lastDelta !== 0 && sign(lastDelta) !== dir) mag = Math.max(1, Math.floor(mag / 2)); // direction flipped: bisect
-    delta = dir * mag;
+    delta = dir * Math.max(1, Math.round(mag * unit(max)));
   }
 
   const next = sliders.slice();
@@ -305,7 +330,10 @@ function calibrate(raw) {
   const accText = `${Math.round(accuracy * 100)}% (${headshots}/${shots})`;
 
   if (targetMet) {
-    message = `Target reached: ${accText} headshots with controlled aim. Keep these values for ${names}, then confirm with a second 20-shot test.`;
+    const lb = `the true rate is likely at least ${Math.round(lowerBound * 100)}%`;
+    message = confirmed
+      ? `Confirmed: two passing tests in a row (latest ${accText}; ${lb}). Keep these values for ${names}.`
+      : `Target reached: ${accText} headshots with controlled aim (${lb} from ${shots} shots). Repeat the test without changing values to confirm.`;
   } else if (pattern === "good") {
     message = shots < 10
       ? `Aim feels right, but ${shots} shots is too few to judge. Fire at least 10–20 and enter the result.`
@@ -317,8 +345,23 @@ function calibrate(raw) {
   let completeness = 0.5;
   try { completeness = normaliseInput(raw.device).completeness; } catch (e) { /* device optional here */ }
   const ev = raw.evidence || {};
-  const rel = reliability({ completeness, communityN: ev.communityN, drill: !!ev.drill, rounds: (Number(ev.rounds) || 0) + 1, targetMet: targetMet || !!ev.targetMet });
-  return { sliders: next, max, delta, accuracy, targetMet, target: TARGET_ACCURACY, message, reliability: rel };
+  const rel = reliability({ completeness, communityN: ev.communityN, drill: !!ev.drill, rounds: (Number(ev.rounds) || 0) + 1, targetMet: targetMet || !!ev.targetMet, confirmed: confirmed || !!ev.confirmed });
+  return { sliders: next, max, delta, accuracy, lowerBound, targetMet, streak, confirmed, target: TARGET_ACCURACY, message, reliability: rel };
 }
 
-module.exports = { generate, calibrate, drill, reliability, profileKey, summariseCommunity, SCOPES, TARGET_ACCURACY };
+// Aggregates first-test results (profile used exactly as generated) into the numbers you can honestly quote.
+function summariseFirstTests(rows) {
+  const group = list => {
+    const n = list.length;
+    const shots = list.reduce((a, r) => a + r.shots, 0), hs = list.reduce((a, r) => a + r.headshots, 0);
+    const rate = r => r.headshots / r.shots;
+    const share = t => (n ? Math.round((list.filter(r => rate(r) >= t).length / n) * 1000) / 10 : 0);
+    return { players: n, pooledRate: shots ? Math.round((hs / shots) * 1000) / 10 : 0, lowerBound95: Math.round(wilsonLower(hs, shots) * 1000) / 10,
+      share75: share(0.75), share85: share(0.85), share90: share(0.9) };
+  };
+  const by = f => group(rows.filter(f));
+  return { all: group(rows), model: by(r => r.source === "model" && !r.drill), modelWithDrill: by(r => r.source === "model" && r.drill),
+    community: by(r => r.source === "community") };
+}
+
+module.exports = { summariseFirstTests, generate, calibrate, drill, reliability, wilsonLower, plausible, profileKey, summariseCommunity, SCOPES, TARGET_ACCURACY };

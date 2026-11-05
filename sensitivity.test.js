@@ -162,3 +162,75 @@ test("drill: overshoot lowers, undershoot raises, balanced leaves values, zoomed
   assert.ok(drill({ sliders, maxSlider: "100", drill: { trials: 12, medianOvershoot: -1, hitRate: 0.9 } }).sliders.every(v => v <= 100));
   assert.throws(() => drill({ sliders, drill: { trials: 2, medianOvershoot: 0, hitRate: 1 } }), /Drill trials/);
 });
+
+test("0-200 scale remaps the whole model (typical values above 100); 100 scale is unchanged", () => {
+  const v200 = vals(generate({ ...phone, maxSlider: "200" })), v100 = vals(generate({ ...phone, maxSlider: "100" }));
+  assert.ok(v200[0] > 100 && v200[1] > 100);
+  assert.ok(v200.every(v => v <= 200));
+  assert.ok(v100.every(v => v <= 100));
+  assert.ok(v200[0] > v100[0] && v200.every((v, i) => v > v100[i]));
+  const step = (max) => Math.abs(calibrate({ sliders: [90, 85, 80, 74, 68, 80], maxSlider: max, scopes: [0], pattern: "over", shots: 20, headshots: 10 }).delta);
+  assert.ok(step("200") > step("100"));
+});
+
+const { wilsonLower, plausible } = require("../sensitivity");
+
+test("wilson lower bound: small lucky samples are discounted, big samples approach the observed rate", () => {
+  assert.ok(wilsonLower(19, 20) < 0.85 && wilsonLower(19, 20) > 0.7);
+  assert.ok(wilsonLower(95, 100) > wilsonLower(19, 20));
+  assert.ok(wilsonLower(10, 10) < 1);
+  assert.strictEqual(wilsonLower(0, 0), 0);
+});
+
+test("a 90% pass counts once; two in a row confirm; a failure resets the streak", () => {
+  const base = { sliders: [90, 85, 80, 74, 68, 80], scopes: [0, 1], pattern: "good", shots: 20, headshots: 19 };
+  const one = calibrate({ ...base, evidence: { streak: 0 } });
+  assert.ok(one.targetMet && !one.confirmed && one.streak === 1 && /Repeat the test/.test(one.message));
+  const two = calibrate({ ...base, evidence: { streak: 1 } });
+  assert.ok(two.confirmed && two.streak === 2 && /Confirmed/.test(two.message));
+  assert.strictEqual(calibrate({ ...base, pattern: "over", evidence: { streak: 1 } }).streak, 0);
+  assert.strictEqual(calibrate({ ...base, headshots: 12, evidence: { streak: 1 } }).streak, 0);
+  assert.ok(two.reliability.score > one.reliability.score);
+});
+
+test("confirmed result is worth more reliability than a single pass", () => {
+  const once = reliability({ completeness: 1, drill: true, rounds: 2, targetMet: true }).score;
+  const conf = reliability({ completeness: 1, drill: true, rounds: 2, targetMet: true, confirmed: true }).score;
+  assert.ok(conf - once === 1);
+});
+
+test("drill: inconsistent scatter halves the change and says so; too few trials rejected", () => {
+  const sliders = [100, 95, 90, 84, 76, 84];
+  const clean = drill({ sliders, maxSlider: "200", drill: { trials: 12, medianOvershoot: 0.3, hitRate: 0.9, spread: 0.2 } });
+  const noisy = drill({ sliders, maxSlider: "200", drill: { trials: 12, medianOvershoot: 0.3, hitRate: 0.9, spread: 0.9 } });
+  assert.ok(Math.abs(noisy.delta) < Math.abs(clean.delta) && noisy.consistent === false && /inconsistent/.test(noisy.message));
+  assert.throws(() => drill({ sliders, drill: { trials: 5, medianOvershoot: 0, hitRate: 1 } }), /Drill trials/);
+});
+
+test("plausibility filter rejects junk values before they reach community data", () => {
+  const model = generate({ ...phone, maxSlider: "200" }).sliders.map(s => s.value);
+  const ok = [...model], junk = [...model]; junk[0] = 5; 
+  assert.ok(plausible({ ...phone, maxSlider: "200" }, [0, 1], ok));
+  assert.ok(!plausible({ ...phone, maxSlider: "200" }, [0, 1], junk));
+  const tooLow = [...model]; tooLow[1] = Math.round(model[1] * 0.5);
+  assert.ok(!plausible({ ...phone, maxSlider: "200" }, [1], tooLow));
+  assert.ok(plausible({ ...phone, maxSlider: "200" }, [1], Object.assign([...model], { 1: Math.round(model[1] * 0.8) })));
+});
+
+test("drill message reports the change actually applied on the 200 scale", () => {
+  const r = drill({ sliders: [150, 140, 130, 120, 110, 120], maxSlider: "200", drill: { trials: 12, medianOvershoot: 0.3, hitRate: 0.9, spread: 0.2 } });
+  assert.strictEqual(150 - r.sliders[0], Number(/up to (\d+)/.exec(r.message)[1]));
+});
+
+test("first-test summary: groups by source/drill and reports a conservative lower bound", () => {
+  const { summariseFirstTests } = require("../sensitivity");
+  const rows = [
+    { source: "model", drill: false, shots: 20, headshots: 10 }, { source: "model", drill: false, shots: 20, headshots: 16 },
+    { source: "model", drill: true, shots: 20, headshots: 18 }, { source: "community", drill: false, shots: 20, headshots: 19 }
+  ];
+  const s = summariseFirstTests(rows);
+  assert.strictEqual(s.all.players, 4); assert.strictEqual(s.model.players, 2);
+  assert.strictEqual(s.model.pooledRate, 65); assert.strictEqual(s.model.share75, 50); assert.strictEqual(s.community.share90, 100);
+  assert.ok(s.model.lowerBound95 < s.model.pooledRate);
+  assert.strictEqual(summariseFirstTests([]).all.players, 0);
+});
