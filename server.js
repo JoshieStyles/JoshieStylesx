@@ -76,7 +76,7 @@ function premiumRoute(handler) {
     try {
       const check = await checkKey(req.body.key);
       if (check.error) return res.status(check.status).json({ error: check.error });
-      res.json(handler(req.body));
+      res.json(await handler(req.body, check.row));
     } catch (e) {
       if (e.status === 400) return res.status(400).json({ error: e.message });
       console.error(e);
@@ -84,8 +84,47 @@ function premiumRoute(handler) {
     }
   };
 }
-app.post("/api/sensitivity/generate", premiumRoute(b => sensitivity.generate(b.input)));
-app.post("/api/sensitivity/calibrate", premiumRoute(b => sensitivity.calibrate(b.input)));
+
+// Profiles that reached the 90% goal, used to start similar devices from proven values.
+async function findCommunity(k) {
+  const lo = k.metric * 0.9, hi = k.metric * 1.1;
+  const base = "SELECT sliders FROM tuned_profiles WHERE device_type=$1 AND max_slider=$2 AND style=$3 AND fps=$4 AND metric BETWEEN $5 AND $6";
+  const args = [k.deviceType, k.max, k.style, k.fps, lo, hi];
+  let rows = (await pool.query(base + " AND skill=$7 AND grip=$8 ORDER BY created_at DESC LIMIT 200", [...args, k.skill, k.grip])).rows;
+  if (rows.length < 3) rows = (await pool.query(base + " ORDER BY created_at DESC LIMIT 200", args)).rows;
+  return sensitivity.summariseCommunity(rows.map(r => r.sliders));
+}
+
+async function saveTuned(keyRow, device, tested, sliders) {
+  const k = sensitivity.profileKey(device);
+  const values = sliders.map((v, i) => (tested.includes(i) ? v : null));
+  await pool.query(
+    `INSERT INTO tuned_profiles (key_id, device_type, max_slider, style, skill, grip, fps, metric, refresh, model, sliders, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now())
+     ON CONFLICT (key_id, device_type, max_slider, style, skill, grip, fps)
+     DO UPDATE SET metric=EXCLUDED.metric, refresh=EXCLUDED.refresh, model=EXCLUDED.model, sliders=EXCLUDED.sliders, created_at=now()`,
+    [keyRow.id, k.deviceType, k.max, k.style, k.skill, k.grip, k.fps, k.metric, k.refresh, k.model, JSON.stringify(values)]
+  );
+}
+
+app.post("/api/sensitivity/generate", premiumRoute(async b => {
+  const key = sensitivity.profileKey(b.input); // validates the input
+  let community = null;
+  try { community = await findCommunity(key); } catch (e) { console.error("community lookup failed", e.message); }
+  return sensitivity.generate(b.input, community);
+}));
+
+app.post("/api/sensitivity/drill", premiumRoute(b => sensitivity.drill(b.input)));
+app.post("/api/sensitivity/calibrate", premiumRoute(async (b, keyRow) => {
+  const result = sensitivity.calibrate(b.input);
+  // Only a verified-looking success (>=20 shots, 90%+, controlled aim) contributes to community data.
+  const i = b.input;
+  if (result.targetMet && i.device && Number(i.shots) >= 20) {
+    try { await saveTuned(keyRow, i.device, i.scopes.map(Number), result.sliders); }
+    catch (e) { if (e.status !== 400) console.error("save tuned profile failed", e.message); }
+  }
+  return result;
+}));
 
 app.post("/api/admin/keys", adminOnly, async (req, res) => {
   try {
@@ -149,6 +188,24 @@ async function start() {
       revoked BOOLEAN NOT NULL DEFAULT FALSE
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tuned_profiles (
+      key_id BIGINT NOT NULL,
+      device_type TEXT NOT NULL,
+      max_slider INT NOT NULL,
+      style TEXT NOT NULL,
+      skill TEXT NOT NULL,
+      grip TEXT NOT NULL,
+      fps INT NOT NULL,
+      metric REAL NOT NULL,
+      refresh INT,
+      model TEXT DEFAULT '',
+      sliders JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (key_id, device_type, max_slider, style, skill, grip, fps)
+    )
+  `);
+  await pool.query("CREATE INDEX IF NOT EXISTS tuned_lookup ON tuned_profiles (device_type, max_slider, style, fps, metric)");
   app.listen(PORT, "0.0.0.0", () => console.log(`NivØx Premium listening on ${PORT}`));
 }
 start().catch(err => {

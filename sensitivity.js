@@ -2,7 +2,7 @@
 /**
  * NivØx sensitivity engine.
  *
- * Free Fire's in-game sliders run 0-100 for: General, Red Dot, 2x, 4x, AWM/Sniper, Free Look.
+ * Free Fire's in-game sliders run 0-200 on current versions (0-100 on older ones; selectable) for: General, Red Dot, 2x, 4x, AWM/Sniper, Free Look.
  *
  * generate()  -> device-aware starting profile. Raw aim speed depends on how many pixels the thumb
  *                crosses per centimetre (screen PPI), frame rate, touch sampling and grip, so each
@@ -18,7 +18,8 @@
 
 const SCOPES = ["General", "Red Dot", "2× Scope", "4× Scope", "AWM / Sniper", "Free Look"];
 const TARGET_ACCURACY = 0.9;
-const MAX_SLIDER = 100;
+const DEFAULT_MAX = 200;
+const ALLOWED_MAX = ["100", "200"];
 // How strongly each scope reacts to a device-wide adjustment (zoomed scopes need smaller moves).
 const SCOPE_WEIGHT = [1, 1, 0.8, 0.7, 0.6, 0.8];
 
@@ -63,10 +64,16 @@ function normaliseInput(raw) {
   const isMouse = type === "emulator";
   const style = oneOf(raw.style, "Play style", Object.keys(STYLE_BASE), "balanced");
   const skill = oneOf(raw.skill, "Skill level", ["beginner", "intermediate", "advanced"], "intermediate");
+  const maxSlider = Number(oneOf(raw.maxSlider, "Slider maximum", ALLOWED_MAX, String(DEFAULT_MAX)));
   const grip = oneOf(raw.grip, "Finger layout", ["2", "3", "4", "5"], "3");
 
+  const given = k => raw[k] !== undefined && raw[k] !== null && raw[k] !== "";
+  const checks = isMouse
+    ? [given("mouseDpi"), given("model"), given("refreshHz")]
+    : [given("screenInches"), given("touchSamplingHz"), given("model"), given("screenWidthPx") && given("screenHeightPx")];
   const out = {
-    type, isMouse, style, skill, grip,
+    completeness: checks.filter(Boolean).length / checks.length,
+    type, isMouse, style, skill, grip, maxSlider,
     model: String(raw.model || "").slice(0, 60),
     fps: num(raw.inGameFps, "In-game FPS", 20, 144, 60),
     ram: num(raw.ramGb, "RAM", 1, 64, 4)
@@ -97,7 +104,83 @@ function pts(n) {
   return (n > 0 ? "+" : "") + n + " pts";
 }
 
-function generate(raw) {
+const round1 = n => Math.round(n * 10) / 10;
+
+/**
+ * Reliability score /10 — how much real evidence backs a profile. NOT a hit-rate prediction.
+ * model baseline 3 + device detail completeness (0-2) + community data (0-2.5)
+ * + personal aim drill (1.5) + calibration rounds (0.5 / 1) + verified 90% (2). Capped at 10.
+ */
+function reliability(e) {
+  const completeness = clamp(Number(e.completeness) || 0, 0, 1);
+  const n = Math.max(0, Number(e.communityN) || 0);
+  const rounds = Math.max(0, Math.floor(Number(e.rounds) || 0));
+  const parts = [
+    { label: "Device model baseline", pts: 3 },
+    { label: "Device details entered", pts: round1(2 * completeness), max: 2 },
+    { label: `Community data${n >= 3 ? ` (${n} similar players)` : ""}`, pts: n >= 3 ? round1(1 + 1.5 * Math.min(1, Math.log(n / 3) / Math.log(10))) : 0, max: 2.5 },
+    { label: "Personal aim drill", pts: e.drill ? 1.5 : 0, max: 1.5 },
+    { label: "Training Ground calibration rounds", pts: rounds >= 2 ? 1 : rounds >= 1 ? 0.5 : 0, max: 1 },
+    { label: "90% headshots verified by you", pts: e.targetMet ? 2 : 0, max: 2 }
+  ];
+  const score = round1(Math.min(10, parts.reduce((a, p) => a + p.pts, 0)));
+  const next = [];
+  if (completeness < 1) next.push("Fill in screen size, touch sampling rate, resolution and model for a tighter starting profile (up to +2).");
+  if (!e.drill) next.push("Run the aim drill (+1.5).");
+  if (rounds < 2) next.push("Run Training Ground calibration rounds (+0.5 to +1).");
+  if (!e.targetMet) next.push("Reach 90% headshots in a 20-shot test with controlled aim (+2).");
+  return { score, parts, next };
+}
+
+/**
+ * Personal aim-drill fit. The browser drill moves a crosshair by (drag distance x General/100) and
+ * records, per trial, how far past (+) or short of (-) the target the player stopped as a fraction of
+ * the distance. A consistent bias means the profile is too fast / too slow for this player's hands.
+ */
+function drill(raw) {
+  if (!raw || typeof raw !== "object") throw bad("Missing drill data.");
+  const max = Number(oneOf(raw.maxSlider, "Slider maximum", ALLOWED_MAX, String(DEFAULT_MAX)));
+  if (!Array.isArray(raw.sliders) || raw.sliders.length !== SCOPES.length) throw bad("Current sensitivity values are missing.");
+  const sliders = raw.sliders.map((v, i) => num(v, SCOPES[i], 0, max));
+  const d = raw.drill || {};
+  const trials = Math.round(num(d.trials, "Drill trials", 6, 60));
+  const bias = num(d.medianOvershoot, "Overshoot", -1, 3);
+  const hitRate = num(d.hitRate, "Drill hit rate", 0, 1);
+  let delta = Math.abs(bias) < 0.06 ? 0 : clamp(Math.round(-bias * 30), -8, 8);
+  if (hitRate < 0.5) delta -= 2;           // very imprecise: favour control
+  delta = clamp(delta, -10, 8);
+  const next = sliders.map((v, i) => clamp(Math.round(v + delta * SCOPE_WEIGHT[i]), 0, max));
+  const tendency = Math.abs(bias) < 0.06 ? "balanced" : bias > 0 ? "overshoot" : "undershoot";
+  const message = delta === 0
+    ? `Drill: ${Math.round(hitRate * 100)}% on target, aim tendency ${tendency}. No change needed.`
+    : `Drill: ${Math.round(hitRate * 100)}% on target, you tend to ${tendency === "balanced" ? "lose precision" : tendency} (${Math.round(bias * 100)}% of distance). ${delta < 0 ? "Lowered" : "Raised"} your values by up to ${Math.abs(delta)} (zoomed scopes change less).`;
+
+  let completeness = 0.5;
+  try { completeness = normaliseInput(raw.device).completeness; } catch (e) { /* device optional here */ }
+  const ev = raw.evidence || {};
+  return { sliders: next, max, delta, tendency, message,
+    reliability: reliability({ completeness, communityN: ev.communityN, drill: true, rounds: ev.rounds, targetMet: !!ev.targetMet }) };
+}
+
+const median = arr => { const a = arr.slice().sort((x, y) => x - y), m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+
+// Normalised key used to store / look up profiles that reached the 90% goal on a similar device.
+function profileKey(raw) {
+  const d = normaliseInput(raw);
+  return { deviceType: d.type, max: d.maxSlider, style: d.style, skill: d.skill, grip: d.isMouse ? "-" : d.grip,
+    fps: d.fps, completeness: d.completeness, metric: Math.round((d.isMouse ? d.mouseDpi : d.ppi) * 10) / 10, refresh: d.refresh, model: d.model };
+}
+
+// rows: arrays of 6 slider values (null = scope not tested). Returns per-scope medians.
+function summariseCommunity(rows) {
+  const medians = SCOPES.map((_, i) => {
+    const v = rows.map(r => r[i]).filter(x => Number.isFinite(x));
+    return v.length >= 3 ? Math.round(median(v)) : null;
+  });
+  return { n: rows.length, medians };
+}
+
+function generate(raw, community) {
   const d = normaliseInput(raw);
   const base = STYLE_BASE[d.style].slice();
   const factors = [];
@@ -143,31 +226,48 @@ function generate(raw) {
   const saturated = [];
   const sliders = SCOPES.map((name, i) => {
     const raw = base[i] * mult + add * SCOPE_WEIGHT[i];
-    if (raw > MAX_SLIDER + 0.5) saturated.push(name);
-    return { name, value: clamp(Math.round(raw), 0, MAX_SLIDER) };
+    if (raw > d.maxSlider + 0.5) saturated.push(name);
+    return { name, value: clamp(Math.round(raw), 0, d.maxSlider) };
   });
+
+  let confidence = "model";
+  if (community && community.n >= 3 && community.medians.some(m => m !== null)) {
+    const w = Math.min(0.8, community.n / (community.n + 6));
+    sliders.forEach((sl, i) => {
+      const m = community.medians[i];
+      if (m !== null) sl.value = clamp(Math.round(sl.value * (1 - w) + m * w), 0, d.maxSlider);
+    });
+    confidence = "community";
+    factors.push({ label: `Community data: ${community.n} players on similar devices reached the 90% goal`, effect: `${Math.round(w * 100)}% weight` });
+  }
 
   const notes = [];
   if (saturated.length) {
-    notes.push(`${saturated.join(", ")} would need more than the in-game maximum of 100 on this device, so it is capped. ` +
+    notes.push(`${saturated.join(", ")} would need more than the in-game maximum of ${d.maxSlider} on this device, so it is capped. ` +
       "If aim still feels slow, use longer swipes or raise the 'General' value only after the calibration step.");
   }
   if (d.fps <= 35) notes.push("Low in-game FPS is the biggest accuracy limiter on this device. Use Smooth graphics before tuning further.");
   if (!d.isMouse && d.touchAssumed) notes.push("Touch sampling rate was estimated from your refresh rate. Enter the real value (from the phone's spec sheet) for a tighter profile.");
-  notes.push("These are starting values from a device model. Run the Training Ground calibration below: it uses your real hit rate to fine-tune each scope toward the 90% goal.");
+  notes.push(confidence === "community"
+    ? "Starting values are blended with profiles that real players on similar devices tuned to 90%. Still run the Training Ground calibration below to fit your own aim."
+    : "No proven profiles exist yet for a device like yours, so these are model estimates. Run the Training Ground calibration below: your result also helps future players with similar devices.");
 
   return {
     sliders,
     factors,
     notes,
     target: TARGET_ACCURACY,
+    confidence,
+    communitySamples: community ? community.n : 0,
+    reliability: reliability({ completeness: d.completeness, communityN: confidence === "community" ? community.n : 0, drill: false, rounds: 0, targetMet: false }),
     summary: {
       device: d.model || (d.isMouse ? "PC emulator" : d.type),
       type: d.type,
       style: STYLE_LABEL[d.style],
       ppi: d.isMouse ? null : Math.round(d.ppi),
       fps: d.fps,
-      refresh: d.refresh
+      refresh: d.refresh,
+      max: d.maxSlider
     }
   };
 }
@@ -175,7 +275,8 @@ function generate(raw) {
 function calibrate(raw) {
   if (!raw || typeof raw !== "object") throw bad("Missing calibration data.");
   if (!Array.isArray(raw.sliders) || raw.sliders.length !== SCOPES.length) throw bad("Current sensitivity values are missing.");
-  const sliders = raw.sliders.map((v, i) => num(v, SCOPES[i], 0, MAX_SLIDER));
+  const max = Number(oneOf(raw.maxSlider, "Slider maximum", ALLOWED_MAX, String(DEFAULT_MAX)));
+  const sliders = raw.sliders.map((v, i) => num(v, SCOPES[i], 0, max));
   const scopes = Array.isArray(raw.scopes) ? [...new Set(raw.scopes.map(Number))] : [];
   if (!scopes.length || scopes.some(i => !Number.isInteger(i) || i < 0 || i >= SCOPES.length)) throw bad("Choose which scope you tested.");
   const pattern = oneOf(raw.pattern, "Aim pattern", ["over", "under", "shaky", "good"]);
@@ -199,7 +300,7 @@ function calibrate(raw) {
   }
 
   const next = sliders.slice();
-  scopes.forEach(i => { next[i] = clamp(next[i] + delta, 0, MAX_SLIDER); });
+  scopes.forEach(i => { next[i] = clamp(next[i] + delta, 0, max); });
   const names = scopes.map(i => SCOPES[i]).join(", ");
   const accText = `${Math.round(accuracy * 100)}% (${headshots}/${shots})`;
 
@@ -213,7 +314,11 @@ function calibrate(raw) {
     message = `${accText} accuracy. ${delta < 0 ? "Lowered" : "Raised"} ${names} by ${Math.abs(delta)}. Retest the same weapon and distance.`;
   }
 
-  return { sliders: next, delta, accuracy, targetMet, target: TARGET_ACCURACY, message };
+  let completeness = 0.5;
+  try { completeness = normaliseInput(raw.device).completeness; } catch (e) { /* device optional here */ }
+  const ev = raw.evidence || {};
+  const rel = reliability({ completeness, communityN: ev.communityN, drill: !!ev.drill, rounds: (Number(ev.rounds) || 0) + 1, targetMet: targetMet || !!ev.targetMet });
+  return { sliders: next, max, delta, accuracy, targetMet, target: TARGET_ACCURACY, message, reliability: rel };
 }
 
-module.exports = { generate, calibrate, SCOPES, TARGET_ACCURACY };
+module.exports = { generate, calibrate, drill, reliability, profileKey, summariseCommunity, SCOPES, TARGET_ACCURACY };
