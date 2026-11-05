@@ -13,6 +13,10 @@ input{width:100%;margin:7px 0 12px}button{background:var(--blue);border:0;font-w
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.tile{background:#0b1424;border:1px solid var(--line);padding:16px;border-radius:12px}.tile strong{display:block;margin-bottom:8px}.muted{color:var(--muted);font-size:13px}.hidden{display:none}.msg{margin-top:10px;color:#ffb6b6}.good{color:#75e6a2}.row{display:flex;gap:9px;flex-wrap:wrap;align-items:center}.row input{flex:1;min-width:150px}.key{font-family:monospace;word-break:break-all;color:#8fc4ff}.admin-list{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 12px}label{font-size:13px;color:var(--muted)}select{width:100%;margin:7px 0 12px}details summary{cursor:pointer;color:#8fc4ff}
 .logrow{display:grid;grid-template-columns:130px 1fr 44px;gap:10px;align-items:center;font-size:13px;margin:6px 0}.bar{position:relative;height:10px;background:#0b1424;border:1px solid var(--line);border-radius:6px}.bar i{display:block;height:100%;border-radius:6px}.bar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#ffd166}
+#arena{position:relative;height:260px;background:#0b1424;border:1px solid var(--line);border-radius:12px;touch-action:none;overflow:hidden;user-select:none;-webkit-user-select:none;cursor:crosshair}
+#tgt{position:absolute;width:36px;height:36px;border-radius:50%;background:#ff4d5e55;border:2px solid #ff4d5e;transform:translate(-50%,-50%);pointer-events:none;display:none}
+#xh{position:absolute;color:#58a6ff;font-size:24px;line-height:1;transform:translate(-50%,-50%);pointer-events:none;display:none}
+.relbox{background:#0b1424;border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}.relscore{font-size:30px;font-weight:800;color:#58a6ff}.relbar{height:10px;background:#162238;border-radius:6px;overflow:hidden;margin:8px 0}.relbar i{display:block;height:100%;background:linear-gradient(90deg,#278bff,#3ecf8e)}
 small{color:var(--muted)}footer{color:var(--muted);font-size:12px;text-align:center;margin:28px 0}
 </style></head>
 <body><main>
@@ -66,7 +70,7 @@ $("toolContent").innerHTML=html;if(which==="sens")initSens()}
 const SENS_SCOPES=["General","Red Dot","2× Scope","4× Scope","AWM / Sniper","Free Look"];
 let sensState={sliders:null,lastDelta:0};
 function sensForm(){
-return `<p>Enter your device details (or tap auto-detect). Free Fire's sliders run <b>0–100</b>. The profile is computed on the server from your screen density, refresh and touch rates, FPS, finger layout and play style, then tuned from your real Training Ground hit rate toward <b>90% headshots</b>.</p>
+return `<p>Enter your device details (or tap auto-detect). Free Fire's sliders run <b>0–200</b> (choose 100 below if your version stops there). The profile is computed on the server from your screen density, refresh and touch rates, FPS, finger layout and play style, then tuned from your real Training Ground hit rate toward <b>90% headshots</b>.</p>
 <div class="row" style="margin-bottom:10px"><button class="secondary" onclick="autoDetect()">Auto-detect this device</button><span id="detectMsg" class="muted"></span></div>
 <div class="form-grid">
 <div><label>Input device</label><select id="deviceType" onchange="syncDeviceFields()"><option value="android">Android phone</option><option value="ios">iPhone</option><option value="tablet">Tablet / iPad</option><option value="emulator">PC emulator (mouse)</option></select></div>
@@ -78,6 +82,7 @@ return `<p>Enter your device details (or tap auto-detect). Free Fire's sliders r
 <div class="mouseOnly hidden"><label>Mouse DPI</label><input id="mouseDpi" type="number" min="100" max="32000" value="800"></div>
 <div><label>Display refresh rate</label><select id="refresh"><option>60</option><option>90</option><option>120</option><option>144</option><option>165</option><option>240</option></select></div>
 <div><label>In-game FPS setting</label><select id="inFps"><option>30</option><option selected>60</option><option>90</option><option>120</option></select></div>
+<div><label>In-game slider maximum</label><select id="maxSlider"><option value="200" selected>200</option><option value="100">100</option></select></div>
 <div><label>RAM</label><select id="ramLevel"><option value="2">2 GB</option><option value="3">3 GB</option><option value="4" selected>4 GB</option><option value="6">6 GB</option><option value="8">8 GB</option><option value="12">12 GB or more</option></select></div>
 <div class="touchOnly"><label>Finger layout</label><select id="grip"><option value="2">2 fingers</option><option value="3" selected>3 fingers</option><option value="4">4 fingers</option><option value="5">5+ fingers</option></select></div>
 <div><label>Play style</label><select id="style"><option value="drag">Drag headshots</option><option value="onetap">One-tap</option><option value="balanced" selected>Balanced</option><option value="precise">Precise / control</option></select></div>
@@ -105,7 +110,7 @@ async function autoDetect(){
 function readSensForm(){
   const v=id=>$(id).value,n=id=>v(id)===""?undefined:Number(v(id));
   return {deviceType:v("deviceType"),model:v("phoneModel").trim(),screenInches:n("screenInches"),screenWidthPx:n("resW"),screenHeightPx:n("resH"),
-    touchSamplingHz:n("touchHz"),mouseDpi:n("mouseDpi"),refreshHz:n("refresh"),inGameFps:n("inFps"),ramGb:n("ramLevel"),grip:v("grip"),style:v("style"),skill:v("skill")};
+    touchSamplingHz:n("touchHz"),mouseDpi:n("mouseDpi"),refreshHz:n("refresh"),inGameFps:n("inFps"),ramGb:n("ramLevel"),maxSlider:v("maxSlider"),grip:v("grip"),style:v("style"),skill:v("skill")};
 }
 async function sensApi(path,input){
   try{return await api(path,{method:"POST",body:JSON.stringify({key:currentKey,input})})}
@@ -113,19 +118,26 @@ async function sensApi(path,input){
 }
 async function makeSens(){
   $("sensResult").innerHTML='<p class="muted">Calculating…</p>';
-  try{const d=await sensApi("/api/sensitivity/generate",readSensForm());sensState={sliders:d.sliders.map(s=>s.value),lastDelta:0};renderSens(d)}
+  try{const d=await sensApi("/api/sensitivity/generate",readSensForm());sensState={sliders:d.sliders.map(s=>s.value),lastDelta:0,max:d.summary.max,device:readSensForm(),evidence:{drill:false,rounds:0,targetMet:false,communityN:d.confidence==="community"?d.communitySamples:0}};renderSens(d)}
   catch(e){$("sensResult").innerHTML=`<p class="msg">${escapeHtml(e.message)}</p>`}
 }
-function sensTiles(){return sensState.sliders.map((v,i)=>`<div class="tile"><strong>${SENS_SCOPES[i]}</strong><span class="sens-val" style="font-size:28px;color:#58a6ff;font-weight:700">${v}</span><div class="muted"> / 100</div></div>`).join("")}
+function sensTiles(){return sensState.sliders.map((v,i)=>`<div class="tile"><strong>${SENS_SCOPES[i]}</strong><span class="sens-val" style="font-size:28px;color:#58a6ff;font-weight:700">${v}</span><div class="muted"> / ${sensState.max}</div></div>`).join("")}
 function readLog(){try{return JSON.parse(localStorage.getItem("nivox_hs_log")||"[]")}catch(e){return[]}}
 function writeLog(a){try{localStorage.setItem("nivox_hs_log",JSON.stringify(a.slice(-8)))}catch(e){}}
 function renderLog(){const l=readLog();$("hsLog").innerHTML=l.length?l.slice().reverse().map(x=>`<div class="logrow"><span>${escapeHtml(x.scope)}</span><div class="bar"><i style="width:${Math.round(x.acc*100)}%;background:${x.acc>=.9?"#3ecf8e":"#278bff"}"></i><b style="left:90%"></b></div><span>${Math.round(x.acc*100)}%</span></div>`).join(""):'<span class="muted">No tests logged yet.</span>'}
 function renderSens(d){
-  $("sensResult").innerHTML=`<p class="good">Profile ready — ${escapeHtml(d.summary.device)} • ${escapeHtml(d.summary.style)}${d.summary.ppi?` • ≈${d.summary.ppi} PPI`:""} • ${d.summary.refresh} Hz • ${d.summary.fps} FPS</p>
+  $("sensResult").innerHTML=`<p class="good">${d.confidence==="community"?`Community-tuned profile (${d.communitySamples} similar players)`:"Model-estimated profile"} — ${escapeHtml(d.summary.device)} • ${escapeHtml(d.summary.style)}${d.summary.ppi?` • ≈${d.summary.ppi} PPI`:""} • ${d.summary.refresh} Hz • ${d.summary.fps} FPS</p>
   <div class="grid" id="sensTiles">${sensTiles()}</div>
+  <div id="relBox" class="relbox"></div>
   <details style="margin-top:12px"><summary>Why these numbers</summary><ul>${d.factors.map(f=>`<li>${escapeHtml(f.label)}: <b>${escapeHtml(f.effect)}</b></li>`).join("")}</ul></details>
   <ul class="muted">${d.notes.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>
   <button class="secondary" onclick="copySens()">Copy values</button>
+  <hr style="border-color:#253653;margin:18px 0">
+  <h3>Aim drill (about 1 minute)</h3>
+  <p class="muted">Put your finger anywhere in the box and drag to move the ✛ onto the red target, then lift to “fire”. The drag speed uses your General value. Your overshoot or undershoot tendency fits the profile to your hands. Run it again after an adjustment to confirm.</p>
+  <div id="arena"><div id="tgt"></div><div id="xh">✛</div></div>
+  <div class="row" style="margin-top:8px"><button onclick="startDrill()">Start drill</button><span id="drillInfo" class="muted">12 targets</span></div>
+  <div id="drillResult" style="margin-top:8px"></div>
   <hr style="border-color:#253653;margin:18px 0">
   <h3>Training Ground calibration — goal ${Math.round(d.target*100)}% headshots</h3>
   <p class="muted">Pick one scope, use the same weapon and distance, fire 20 shots at a bot's head, then enter the result. Repeat until the target is met.</p>
@@ -138,18 +150,60 @@ function renderSens(d){
   <div id="calibrationResult" style="margin-top:10px"></div>
   <h3 style="margin-top:16px">Recent tests <small>(line = 90% goal)</small></h3><div id="hsLog"></div>
   <small>No slider value can guarantee a hit rate: ping, FPS, touch latency and practice also decide it. This tool measures your real result and adjusts toward the goal.</small>`;
-  renderLog();
+  renderLog();renderRel(d.reliability);
 }
 async function calibrateSens(){
   if(!sensState.sliders)return;
   const scopesStr=$("calScope").value,scopes=scopesStr.split(",").map(Number);
   try{
-    const d=await sensApi("/api/sensitivity/calibrate",{sliders:sensState.sliders,scopes,pattern:$("calPattern").value,shots:Number($("calShots").value),headshots:Number($("calHits").value),lastDelta:sensState.lastDelta});
+    const d=await sensApi("/api/sensitivity/calibrate",{device:sensState.device,evidence:sensState.evidence,sliders:sensState.sliders,maxSlider:String(sensState.max),scopes,pattern:$("calPattern").value,shots:Number($("calShots").value),headshots:Number($("calHits").value),lastDelta:sensState.lastDelta});
     sensState.sliders=d.sliders;if(d.delta!==0)sensState.lastDelta=d.delta;
-    document.querySelectorAll("#sensTiles .sens-val").forEach((el,i)=>el.textContent=d.sliders[i]);
+    sensState.evidence.rounds++;if(d.targetMet)sensState.evidence.targetMet=true;
+    updateTiles();renderRel(d.reliability);
     $("calibrationResult").innerHTML=`<p class="${d.targetMet?"good":"muted"}">${escapeHtml(d.message)}</p>`;
     const l=readLog();l.push({acc:d.accuracy,scope:$("calScope").selectedOptions[0].textContent});writeLog(l);renderLog();
   }catch(e){$("calibrationResult").innerHTML=`<p class="msg">${escapeHtml(e.message)}</p>`}
+}
+function updateTiles(){document.querySelectorAll("#sensTiles .sens-val").forEach((el,i)=>el.textContent=sensState.sliders[i])}
+function renderRel(r){
+  $("relBox").innerHTML=`<div class="row"><span class="relscore">${r.score.toFixed(1)}<small> / 10</small></span><span class="muted" style="flex:1;min-width:180px">Profile reliability: how much real evidence backs these numbers. It is not a hit-rate prediction.</span></div>
+  <div class="relbar"><i style="width:${r.score*10}%"></i></div>
+  <details><summary>How this is scored</summary><ul>${r.parts.map(p=>`<li>${escapeHtml(p.label)}: <b>${p.pts}</b>${p.max?` / ${p.max}`:""}</li>`).join("")}</ul></details>
+  ${r.next.length?`<div class="muted" style="margin-top:6px">To raise it:<ul>${r.next.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul></div>`:'<div class="good">All evidence collected.</div>'}`;
+}
+const DRILL_TRIALS=12,TGT_R=18;let dr=null;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const medianOf=a=>{const b=a.slice().sort((x,y)=>x-y),m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2};
+function placeDrill(){const d=dr;$("tgt").style.cssText=`display:block;left:${d.tx}px;top:${d.ty}px`;$("xh").style.cssText=`display:block;left:${d.x}px;top:${d.y}px`}
+function nextTrial(){
+  const d=dr;
+  do{d.sx=rnd(30,d.W-30);d.sy=rnd(30,d.H-30);d.tx=rnd(30,d.W-30);d.ty=rnd(30,d.H-30)}while(Math.hypot(d.tx-d.sx,d.ty-d.sy)<Math.min(d.W,d.H)*0.45);
+  d.x=d.sx;d.y=d.sy;d.down=false;d.t0=0;placeDrill();$("drillInfo").textContent=`Target ${d.n+1} / ${DRILL_TRIALS}`;
+}
+function startDrill(){
+  if(!sensState.sliders)return;
+  const a=$("arena");
+  dr={n:0,res:[],gain:sensState.sliders[0]/100,W:a.clientWidth,H:a.clientHeight,down:false};
+  $("drillResult").innerHTML="";nextTrial();
+  a.onpointerdown=e=>{if(!dr)return;e.preventDefault();dr.down=true;dr.lx=e.clientX;dr.ly=e.clientY;try{a.setPointerCapture(e.pointerId)}catch(x){}};
+  a.onpointermove=e=>{const d=dr;if(!d||!d.down)return;d.x=Math.max(0,Math.min(d.W,d.x+(e.clientX-d.lx)*d.gain));d.y=Math.max(0,Math.min(d.H,d.y+(e.clientY-d.ly)*d.gain));d.lx=e.clientX;d.ly=e.clientY;placeDrill()};
+  a.onpointerup=a.onpointercancel=()=>{
+    const d=dr;if(!d||!d.down)return;d.down=false;
+    const dist=Math.hypot(d.tx-d.sx,d.ty-d.sy),ex=d.x-d.tx,ey=d.y-d.ty;
+    if(Math.hypot(d.x-d.sx,d.y-d.sy)<5)return; // no real drag: ignore, retry same target
+    d.res.push({over:(ex*(d.tx-d.sx)+ey*(d.ty-d.sy))/(dist*dist),hit:Math.hypot(ex,ey)<=TGT_R});
+    if(++d.n>=DRILL_TRIALS)finishDrill();else nextTrial();
+  };
+}
+async function finishDrill(){
+  const d=dr;dr=null;$("tgt").style.display=$("xh").style.display="none";$("drillInfo").textContent="Calculating…";
+  const body={device:sensState.device,evidence:sensState.evidence,sliders:sensState.sliders,maxSlider:String(sensState.max),
+    drill:{trials:d.res.length,medianOvershoot:medianOf(d.res.map(r=>r.over)),hitRate:d.res.filter(r=>r.hit).length/d.res.length}};
+  try{
+    const r=await sensApi("/api/sensitivity/drill",body);
+    sensState.sliders=r.sliders;sensState.evidence.drill=true;updateTiles();renderRel(r.reliability);
+    $("drillResult").innerHTML=`<p class="${r.delta===0?"good":"muted"}">${escapeHtml(r.message)}</p>`;$("drillInfo").textContent="Done — run again to confirm.";
+  }catch(e){$("drillResult").innerHTML=`<p class="msg">${escapeHtml(e.message)}</p>`;$("drillInfo").textContent=""}
 }
 function copySens(){const t=sensState.sliders.map((v,i)=>`${SENS_SCOPES[i]}: ${v}`).join("\n");try{navigator.clipboard.writeText(t)}catch(e){}}
 function adminHeaders(){return {"x-admin-password":$("adminPassword").value}}
