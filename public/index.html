@@ -47,7 +47,7 @@ small{color:var(--muted)}footer{color:var(--muted);font-size:12px;text-align:cen
 <div class="row"><input id="duration" type="number" min="1" max="8760" value="24" placeholder="Hours"><input id="keyLabel" placeholder="Key label (optional)"><button onclick="createKey()">Generate key</button></div>
 <div class="muted">Set the key time limit in the Hours box above. Examples: 1 = one hour, 24 = one day, 168 = seven days, 720 = 30 days.</div>
 <div id="newKey" class="muted" style="margin-top:12px"></div><div id="adminMsg" class="msg"></div>
-<button class="secondary" onclick="loadKeys()" style="margin-top:10px">Refresh key list</button>
+<button class="secondary" onclick="loadKeys()" style="margin-top:10px">Refresh key list</button> <button class="secondary" onclick="loadStats()" style="margin-top:10px">Measured accuracy report</button><div id="statsBox" class="muted" style="margin-top:10px"></div>
 <div class="admin-list"><table><thead><tr><th>Label</th><th>Created</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody id="keyRows"></tbody></table></div>
 </section>
 <footer>Fan-made utility panel. Not affiliated with Garena or Free Fire. No cheats or game-file modifications.</footer>
@@ -118,7 +118,7 @@ async function sensApi(path,input){
 }
 async function makeSens(){
   $("sensResult").innerHTML='<p class="muted">Calculating…</p>';
-  try{const d=await sensApi("/api/sensitivity/generate",readSensForm());sensState={sliders:d.sliders.map(s=>s.value),lastDelta:0,max:d.summary.max,device:readSensForm(),evidence:{drill:false,rounds:0,targetMet:false,communityN:d.confidence==="community"?d.communitySamples:0}};renderSens(d)}
+  try{const d=await sensApi("/api/sensitivity/generate",readSensForm());sensState={sliders:d.sliders.map(s=>s.value),lastDelta:0,max:d.summary.max,device:readSensForm(),evidence:{drill:false,rounds:0,streak:0,confirmed:false,targetMet:false,communityN:d.confidence==="community"?d.communitySamples:0}};renderSens(d)}
   catch(e){$("sensResult").innerHTML=`<p class="msg">${escapeHtml(e.message)}</p>`}
 }
 function sensTiles(){return sensState.sliders.map((v,i)=>`<div class="tile"><strong>${SENS_SCOPES[i]}</strong><span class="sens-val" style="font-size:28px;color:#58a6ff;font-weight:700">${v}</span><div class="muted"> / ${sensState.max}</div></div>`).join("")}
@@ -158,7 +158,7 @@ async function calibrateSens(){
   try{
     const d=await sensApi("/api/sensitivity/calibrate",{device:sensState.device,evidence:sensState.evidence,sliders:sensState.sliders,maxSlider:String(sensState.max),scopes,pattern:$("calPattern").value,shots:Number($("calShots").value),headshots:Number($("calHits").value),lastDelta:sensState.lastDelta});
     sensState.sliders=d.sliders;if(d.delta!==0)sensState.lastDelta=d.delta;
-    sensState.evidence.rounds++;if(d.targetMet)sensState.evidence.targetMet=true;
+    sensState.evidence.rounds++;sensState.evidence.streak=d.streak;if(d.targetMet)sensState.evidence.targetMet=true;if(d.confirmed)sensState.evidence.confirmed=true;
     updateTiles();renderRel(d.reliability);
     $("calibrationResult").innerHTML=`<p class="${d.targetMet?"good":"muted"}">${escapeHtml(d.message)}</p>`;
     const l=readLog();l.push({acc:d.accuracy,scope:$("calScope").selectedOptions[0].textContent});writeLog(l);renderLog();
@@ -173,6 +173,7 @@ function renderRel(r){
 }
 const DRILL_TRIALS=12,TGT_R=18;let dr=null;
 const rnd=(a,b)=>a+Math.random()*(b-a);
+const iqr=a=>{const b=a.slice().sort((x,y)=>x-y),q=f=>b[Math.min(b.length-1,Math.floor(f*b.length))];return q(.75)-q(.25)};
 const medianOf=a=>{const b=a.slice().sort((x,y)=>x-y),m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2};
 function placeDrill(){const d=dr;$("tgt").style.cssText=`display:block;left:${d.tx}px;top:${d.ty}px`;$("xh").style.cssText=`display:block;left:${d.x}px;top:${d.y}px`}
 function nextTrial(){
@@ -198,7 +199,7 @@ function startDrill(){
 async function finishDrill(){
   const d=dr;dr=null;$("tgt").style.display=$("xh").style.display="none";$("drillInfo").textContent="Calculating…";
   const body={device:sensState.device,evidence:sensState.evidence,sliders:sensState.sliders,maxSlider:String(sensState.max),
-    drill:{trials:d.res.length,medianOvershoot:medianOf(d.res.map(r=>r.over)),hitRate:d.res.filter(r=>r.hit).length/d.res.length}};
+    drill:{trials:d.res.length,medianOvershoot:medianOf(d.res.map(r=>r.over)),spread:iqr(d.res.map(r=>r.over)),hitRate:d.res.filter(r=>r.hit).length/d.res.length}};
   try{
     const r=await sensApi("/api/sensitivity/drill",body);
     sensState.sliders=r.sliders;sensState.evidence.drill=true;updateTiles();renderRel(r.reliability);
@@ -209,6 +210,11 @@ function copySens(){const t=sensState.sliders.map((v,i)=>`${SENS_SCOPES[i]}: ${v
 function adminHeaders(){return {"x-admin-password":$("adminPassword").value}}
 async function createKey(){ $("adminMsg").textContent="";try{const d=await api("/api/admin/keys",{method:"POST",headers:adminHeaders(),body:JSON.stringify({hours:$("duration").value,label:$("keyLabel").value})});$("newKey").innerHTML=`New key: <b class="key">${d.key}</b> <button class="secondary" onclick="navigator.clipboard.writeText('${d.key}')">Copy</button><br>Expires: ${new Date(d.expiresAt).toLocaleString()}`;loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
 async function loadKeys(){try{const rows=await api("/api/admin/keys",{headers:adminHeaders()});$("keyRows").innerHTML=rows.map(k=>`<tr><td>${escapeHtml(k.label||"—")}</td><td>${new Date(k.created_at).toLocaleString()}</td><td>${new Date(k.expires_at).toLocaleString()}</td><td>${k.revoked?"Disabled":Date.now()>=k.expires_at?"Expired":"Active"}</td><td>${k.revoked?"—":`<button class="danger" onclick="revokeKey(${k.id})">Disable</button>`}</td></tr>`).join("")}catch(e){$("adminMsg").textContent=e.message}}
+async function loadStats(){
+  try{const s=await api("/api/admin/stats",{headers:adminHeaders()});
+    const row=(n,g)=>`<tr><td>${n}</td><td>${g.players}</td><td>${g.pooledRate}%</td><td>${g.lowerBound95}%</td><td>${g.share75}%</td><td>${g.share85}%</td><td>${g.share90}%</td></tr>`;
+    $("statsBox").innerHTML=`<b>First-test headshot results</b> (profile used exactly as generated, before calibration). Only quote figures from this table.<div class="admin-list"><table><thead><tr><th>Group</th><th>Players</th><th>Pooled rate</th><th>Safe lower bound</th><th>≥75%</th><th>≥85%</th><th>≥90%</th></tr></thead><tbody>${row("All",s.all)}${row("Model only",s.model)}${row("Model + drill",s.modelWithDrill)}${row("Community-tuned",s.community)}</tbody></table></div><small>Need roughly 30+ players per group before treating a row as reliable. Results are self-reported.</small>`
+  }catch(e){$("adminMsg").textContent=e.message}}
 async function revokeKey(id){try{await api(`/api/admin/keys/${id}/revoke`,{method:"POST",headers:adminHeaders()});loadKeys()}catch(e){$("adminMsg").textContent=e.message}}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 </script></body></html>
