@@ -1,13 +1,14 @@
 {
-  "name": "nivox-freefire-premium",
-  "version": "1.0.0",
-  "description": "Free Fire Pro Sensitivity Generator with 9/10 Headshot Accuracy Logic",
-  "main": "server.js",
+  "name": "nivox-freefire-premium-panel",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Key-protected Free Fire sensitivity and device optimisation dashboard",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
   }
 }

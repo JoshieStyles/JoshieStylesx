@@ -1,9 +1,13 @@
 services:
   - type: web
-    name: nivox-freefire-premium
-    env: node
+    name: nivox-mods-premium
+    runtime: node
+    plan: free
     buildCommand: npm install
     startCommand: npm start
+    healthCheckPath: /
     envVars:
-      - key: PORT
-        value: 10000
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
